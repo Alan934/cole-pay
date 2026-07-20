@@ -1,0 +1,247 @@
+// ColePay — Esquema de datos
+// Billetera electrónica ficticia con fines educativos.
+// ORM: Prisma  |  Base de datos: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STUDENT
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+enum TransactionType {
+  TRANSFER // alumno -> alumno
+  ISSUANCE // emisión monetaria del admin (dinero de la nada)
+  DEPOSIT // admin carga saldo a un alumno (efectivo físico)
+  PAYMENT // alumno paga una factura/servicio al sistema (admin)
+  PRIZE // premio/bonificación del admin a un alumno
+  FINE // multa/descuento del admin a un alumno
+  INTEREST // interés pagado por el banco al vencer un plazo fijo
+  SAVINGS // movimiento entre saldo y una meta de ahorro (apartar/retirar)
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum RequestStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+enum DepositStatus {
+  ACTIVE
+  WITHDRAWN
+}
+
+enum NotificationType {
+  MONEY_RECEIVED
+  NEW_INVOICE
+  INVOICE_PAID
+  GENERIC
+}
+
+model Group {
+  id        String   @id @default(cuid())
+  name      String   @unique // ej: "3A2026"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users            User[]
+  recurringCharges RecurringCharge[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(STUDENT)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  groupId String?
+  group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  wallet Wallet?
+
+  // Relaciones de transacciones
+  sentTransactions     Transaction[] @relation("SentTransactions")
+  receivedTransactions Transaction[] @relation("ReceivedTransactions")
+
+  invoices      Invoice[]      @relation("StudentInvoices")
+  createdInvoices Invoice[]    @relation("AdminInvoices")
+  notifications Notification[]
+
+  savingsGoals    SavingsGoal[]
+  fixedDeposits   FixedDeposit[]
+  paymentRequests PaymentRequest[] @relation("RequestedBy")
+  paidRequests    PaymentRequest[] @relation("PaidBy")
+  recurringCharges RecurringCharge[] @relation("AdminRecurring")
+
+  @@index([groupId])
+  @@index([role])
+}
+
+model Wallet {
+  id      String  @id @default(cuid())
+  balance Decimal @default(0) @db.Decimal(14, 2)
+  cvu     String  @unique // ficticio: 22 dígitos
+  alias   String  @unique // editable por el alumno
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Registro inmutable de movimientos de dinero.
+model Transaction {
+  id          String          @id @default(cuid())
+  type        TransactionType
+  amount      Decimal         @db.Decimal(14, 2)
+  description String
+  category    String? // categoría del gasto (ej: "Comida", "Servicios")
+  timestamp   DateTime        @default(now())
+
+  // senderId es null cuando el sistema/admin emite dinero.
+  senderId String?
+  sender   User?   @relation("SentTransactions", fields: [senderId], references: [id], onDelete: SetNull)
+
+  receiverId String?
+  receiver   User?   @relation("ReceivedTransactions", fields: [receiverId], references: [id], onDelete: SetNull)
+
+  // Vínculo opcional con la factura pagada.
+  invoice Invoice?
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([timestamp])
+}
+
+// Servicio / cobro creado por un Admin hacia un alumno.
+model Invoice {
+  id          String        @id @default(cuid())
+  description String // ej: "Alquiler Stand A - Semana 2"
+  amount      Decimal       @db.Decimal(14, 2)
+  dueDate     DateTime?
+  status      InvoiceStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  paidAt      DateTime?
+
+  studentId String
+  student   User   @relation("StudentInvoices", fields: [studentId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User?   @relation("AdminInvoices", fields: [createdById], references: [id], onDelete: SetNull)
+
+  // Transacción generada al pagar (1:1).
+  transactionId String?      @unique
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([studentId])
+  @@index([status])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType @default(GENERIC)
+  title     String
+  body      String
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
+
+// Meta de ahorro del alumno. `savedAmount` es dinero apartado del saldo disponible.
+model SavingsGoal {
+  id           String     @id @default(cuid())
+  name         String
+  targetAmount Decimal    @db.Decimal(14, 2)
+  savedAmount  Decimal    @default(0) @db.Decimal(14, 2)
+  status       GoalStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  completedAt  DateTime?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Plazo fijo: el alumno inmoviliza `principal` y al vencer cobra principal + interés.
+model FixedDeposit {
+  id           String        @id @default(cuid())
+  principal    Decimal       @db.Decimal(14, 2)
+  ratePct      Decimal       @db.Decimal(6, 2) // tasa % sobre el período
+  status       DepositStatus @default(ACTIVE)
+  createdAt    DateTime      @default(now())
+  maturesAt    DateTime
+  withdrawnAt  DateTime?
+  payoutAmount Decimal?      @db.Decimal(14, 2)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Pedido de cobro (request money) que un alumno comparte por link/QR.
+model PaymentRequest {
+  id          String        @id @default(cuid())
+  amount      Decimal       @db.Decimal(14, 2)
+  description String?
+  status      RequestStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  paidAt      DateTime?
+
+  requesterId String
+  requester   User   @relation("RequestedBy", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  payerId String?
+  payer   User?   @relation("PaidBy", fields: [payerId], references: [id], onDelete: SetNull)
+
+  @@index([requesterId])
+  @@index([status])
+}
+
+// Cobro recurrente programado por el admin (genera Invoices periódicamente).
+model RecurringCharge {
+  id          String   @id @default(cuid())
+  description String
+  amount      Decimal  @db.Decimal(14, 2)
+  intervalDays Int     @default(7) // cada cuántos días se genera
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  nextRunAt   DateTime
+  lastRunAt   DateTime?
+
+  groupId String?
+  group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   User?   @relation("AdminRecurring", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([active])
+}

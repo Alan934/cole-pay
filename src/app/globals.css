@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+
+  /* Tema oscuro (por defecto) */
+  --canvas: 10 11 15;
+  --panel: 16 18 24;
+  --card: 22 25 35;
+  --raised: 28 32 48;
+  --raised2: 39 44 63;
+  --raised3: 58 64 86;
+  --ink: 255 255 255;
+  --onaccent: 10 11 15;
+  --accent: 0 229 160;
+  --accent-hover: 0 201 141;
+
+  --grad-a: rgba(0, 229, 160, 0.08);
+  --grad-b: rgba(139, 92, 246, 0.08);
+}
+
+:root[data-theme="light"] {
+  /* Tema claro */
+  --canvas: 244 246 250;
+  --panel: 255 255 255;
+  --card: 255 255 255;
+  --raised: 237 240 245;
+  --raised2: 224 228 236;
+  --raised3: 200 206 218;
+  --ink: 15 18 26;
+  --onaccent: 10 11 15;
+  --accent: 0 163 122;
+  --accent-hover: 0 143 107;
+
+  --grad-a: rgba(0, 163, 122, 0.1);
+  --grad-b: rgba(139, 92, 246, 0.1);
+}
+
+html {
+  color-scheme: dark;
+}
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-canvas text-ink antialiased;
+  background-image:
+    radial-gradient(60rem 60rem at 110% -10%, var(--grad-a), transparent 60%),
+    radial-gradient(50rem 50rem at -10% 10%, var(--grad-b), transparent 55%);
+  background-attachment: fixed;
+  min-height: 100dvh;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+/* Scrollbar sutil */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-raised2 rounded-full;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
