@@ -6,6 +6,7 @@ import { AlertCircle, LogIn } from "lucide-react";
 import { login, type LoginState } from "@/app/actions/auth";
 import { Card } from "@/components/ui/Card";
 import { Input, Label } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Button } from "@/components/ui/Button";
 
 function SubmitButton() {
@@ -37,10 +38,9 @@ export function LoginForm() {
         </div>
         <div>
           <Label htmlFor="password">Contraseña</Label>
-          <Input
+          <PasswordInput
             id="password"
             name="password"
-            type="password"
             autoComplete="current-password"
             placeholder="••••••••"
             required

@@ -108,7 +108,7 @@ test.describe("Flujo del admin (Banco Central)", () => {
     const form = page.locator("form", { has: page.getByLabel("Email (login)") });
     await form.getByLabel("Nombre").fill("Nuevo Alumno");
     await form.getByLabel("Email (login)").fill("nuevo@test.colepay");
-    await form.getByLabel("Contraseña").fill(PASSWORD_STUDENT);
+    await form.getByLabel("Contraseña", { exact: true }).fill(PASSWORD_STUDENT);
     await form.getByLabel("Grupo").selectOption({ label: "3A2026" });
     await form.getByRole("button", { name: "Crear alumno" }).click();
     await expectMainContains(page, "fue creado correctamente");
@@ -127,13 +127,30 @@ test.describe("Flujo del admin (Banco Central)", () => {
     await expectMainContains(page, "Saldo disponible");
   });
 
+  test("el campo de contraseña al crear alumno se puede mostrar/ocultar", async ({
+    page,
+  }) => {
+    await loginAdmin(page);
+    await page.goto("/admin/students");
+    const form = page.locator("form", { has: page.getByLabel("Email (login)") });
+    const pass = form.getByLabel("Contraseña", { exact: true });
+    await pass.fill("claveDelAlumno");
+
+    await expect(pass).toHaveAttribute("type", "password");
+    await form.getByRole("button", { name: "Mostrar contraseña" }).click();
+    await expect(pass).toHaveAttribute("type", "text");
+    await expect(pass).toHaveValue("claveDelAlumno");
+    await form.getByRole("button", { name: "Ocultar contraseña" }).click();
+    await expect(pass).toHaveAttribute("type", "password");
+  });
+
   test("rechaza crear un alumno con email duplicado", async ({ page }) => {
     await loginAdmin(page);
     await page.goto("/admin/students");
     const form = page.locator("form", { has: page.getByLabel("Email (login)") });
     await form.getByLabel("Nombre").fill("Repetida");
     await form.getByLabel("Email (login)").fill(USERS.sofia);
-    await form.getByLabel("Contraseña").fill("otra1234");
+    await form.getByLabel("Contraseña", { exact: true }).fill("otra1234");
     await form.getByRole("button", { name: "Crear alumno" }).click();
     await expectMainContains(page, "Ya existe un usuario con ese email");
   });
@@ -162,7 +179,7 @@ test.describe("Flujo del admin (Banco Central)", () => {
     await page.context().clearCookies();
     await page.goto("/login");
     await page.getByLabel("Email").fill(USERS.mateo);
-    await page.getByLabel("Contraseña").fill("clavenueva");
+    await page.getByLabel("Contraseña", { exact: true }).fill("clavenueva");
     await page.getByRole("button", { name: "Ingresar" }).click();
     await page.waitForURL("**/dashboard");
   });

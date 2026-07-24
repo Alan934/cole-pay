@@ -9,10 +9,14 @@ export async function login(
   expectPath: string | RegExp,
 ) {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Contraseña").fill(password);
+  // El server de dev puede tardar en compilar /login la primera vez, y puede
+  // haber un redirect en vuelo: esperamos el formulario antes de escribir.
+  const emailField = page.getByLabel("Email");
+  await emailField.waitFor({ state: "visible", timeout: 30_000 });
+  await emailField.fill(email);
+  await page.getByLabel("Contraseña", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Ingresar" }).click();
-  await page.waitForURL(expectPath, { timeout: 20_000 });
+  await page.waitForURL(expectPath, { timeout: 30_000 });
 }
 
 export async function loginAdmin(page: Page, email = USERS.admin) {

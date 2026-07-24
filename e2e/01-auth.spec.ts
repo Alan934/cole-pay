@@ -23,7 +23,7 @@ test.describe("Autenticación y control de acceso", () => {
   test("contraseña incorrecta muestra error y no inicia sesión", async ({ page }) => {
     await page.goto("/login");
     await page.getByLabel("Email").fill(USERS.sofia);
-    await page.getByLabel("Contraseña").fill("clave-incorrecta");
+    await page.getByLabel("Contraseña", { exact: true }).fill("clave-incorrecta");
     await page.getByRole("button", { name: "Ingresar" }).click();
     await expect(page.locator("form")).toContainText("Email o contraseña incorrectos");
     await expect(page).toHaveURL(/\/login/);
@@ -32,7 +32,7 @@ test.describe("Autenticación y control de acceso", () => {
   test("email inexistente muestra error", async ({ page }) => {
     await page.goto("/login");
     await page.getByLabel("Email").fill("nadie@test.colepay");
-    await page.getByLabel("Contraseña").fill("loquesea");
+    await page.getByLabel("Contraseña", { exact: true }).fill("loquesea");
     await page.getByRole("button", { name: "Ingresar" }).click();
     await expect(page.locator("form")).toContainText("Email o contraseña incorrectos");
   });
@@ -81,6 +81,33 @@ test.describe("Autenticación y control de acceso", () => {
     await page.reload();
     const afterReload = await page.evaluate(() => document.documentElement.dataset.theme);
     expect(afterReload).toBe(toggled);
+  });
+
+  test("el botón de mostrar contraseña alterna la visibilidad", async ({ page }) => {
+    await page.goto("/login");
+    const pass = page.getByLabel("Contraseña", { exact: true });
+    await pass.fill("miClaveSecreta");
+
+    // Por defecto viene oculta.
+    await expect(pass).toHaveAttribute("type", "password");
+
+    await page.getByRole("button", { name: "Mostrar contraseña" }).click();
+    await expect(pass).toHaveAttribute("type", "text");
+    // El texto escrito no se pierde al alternar.
+    await expect(pass).toHaveValue("miClaveSecreta");
+
+    await page.getByRole("button", { name: "Ocultar contraseña" }).click();
+    await expect(pass).toHaveAttribute("type", "password");
+    await expect(pass).toHaveValue("miClaveSecreta");
+  });
+
+  test("el toggle no envía el formulario por accidente", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(USERS.sofia);
+    await page.getByLabel("Contraseña", { exact: true }).fill(PASSWORD_STUDENT);
+    await page.getByRole("button", { name: "Mostrar contraseña" }).click();
+    // Sigue en el login: el botón es type="button", no hace submit.
+    await expect(page).toHaveURL(/\/login/);
   });
 
   test("las credenciales de alumno no sirven para el panel admin", async ({ page }) => {

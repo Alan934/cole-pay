@@ -7,6 +7,7 @@ import { createUser, editUser } from "@/app/actions/admin";
 import type { ActionResult } from "@/app/actions/student";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Input, Label, Select } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { FormFeedback } from "@/components/admin/FormFeedback";
@@ -159,7 +160,13 @@ function CreateStudentForm({ groups }: { groups: GroupOpt[] }) {
         </div>
         <div>
           <Label htmlFor="c-pass">Contraseña</Label>
-          <Input id="c-pass" name="password" type="text" placeholder="mínimo 4 caracteres" required />
+          <PasswordInput
+            id="c-pass"
+            name="password"
+            autoComplete="new-password"
+            placeholder="mínimo 4 caracteres"
+            required
+          />
         </div>
         <div>
           <Label htmlFor="c-group">Grupo</Label>
@@ -253,7 +260,12 @@ function EditStudentDialog({
           </div>
           <div>
             <Label htmlFor="e-pass">Nueva contraseña (opcional)</Label>
-            <Input id="e-pass" name="password" type="text" placeholder="Dejar vacío para no cambiar" />
+            <PasswordInput
+            id="e-pass"
+            name="password"
+            autoComplete="new-password"
+            placeholder="Dejar vacío para no cambiar"
+          />
           </div>
           {state && (
             <FormFeedback ok={state.ok} msg={state.ok ? state.message : state.error} />
