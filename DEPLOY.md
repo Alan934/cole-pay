@@ -11,6 +11,7 @@ cargar estas variables **a mano en Vercel**:
 |---|---|---|
 | `DATABASE_URL` | La cadena de conexión de tu base **Neon** (la misma de tu `.env`) | Production, Preview, Development |
 | `AUTH_SECRET` | Un secreto largo y aleatorio. Generalo con `npx auth secret` o `openssl rand -base64 32` | Production, Preview, Development |
+| `CRON_SECRET` | Otro secreto largo y aleatorio. Protege el cron diario de rendimientos | Production |
 
 > ⚠️ **NO** cargues `AUTH_URL`. En Vercel, Auth.js detecta la URL solo. Si ponés
 > `AUTH_URL=http://localhost:3000` (como en tu `.env` local), el login se rompe en
@@ -37,16 +38,39 @@ Vercel es serverless y abre muchas conexiones. Usá la cadena de conexión
 **"Pooled"** de Neon (la que tiene `-pooler` en el host), que es justo la que ya
 tenés en tu `.env`. ✅
 
-## 4. Checklist rápido
+## 4. Rendimientos: el cron diario
+
+Los intereses **no** se acreditan solos en tu compu: los acredita Vercel una vez
+por día. La configuración ya está en `vercel.json`:
+
+```json
+{ "crons": [{ "path": "/api/cron/accrual", "schedule": "0 3 * * *" }] }
+```
+
+- Corre a las **03:00 UTC** = medianoche en Argentina.
+- Vercel llama al endpoint con `Authorization: Bearer $CRON_SECRET`. Si no
+  cargaste `CRON_SECRET` en Vercel, el endpoint **no acredita nada** (falla
+  cerrado a propósito, para que nadie de afuera pueda dispararlo).
+- En el plan Hobby de Vercel los crons corren **una vez por día** y el horario
+  puede correrse un rato. No pasa nada: la liquidación calcula los días reales
+  transcurridos y no paga dos veces el mismo período.
+- Para verlo funcionar: Vercel → tu proyecto → **Cron Jobs**.
+- Si un día no corrió, entrá a **/admin/rendimientos** y usá "Liquidar ahora".
+
+> 💡 Mientras trabajás en `localhost` el cron no existe. Para probar en clase,
+> usá el botón "Liquidar ahora" del panel de admin.
+
+## 5. Checklist rápido
 
 - [ ] `DATABASE_URL` cargada en Vercel (las 3 environments)
 - [ ] `AUTH_SECRET` cargada en Vercel
+- [ ] `CRON_SECRET` cargada en Vercel (Production)
 - [ ] `AUTH_URL` **NO** está seteada (o apunta a tu dominio real, no a localhost)
 - [ ] Migraciones aplicadas en Neon (`prisma migrate deploy`)
 - [ ] Datos iniciales cargados si querés (`npm run db:seed` apuntando a Neon)
 - [ ] Redeploy después de configurar las variables
 
-## 5. Si el build falla
+## 6. Si el build falla
 
 - Mirá el log completo en Vercel (Deployments → el deploy fallido → "Building").
   Los `warn`/`npm warn` **no** rompen el build; buscá una línea con `Error:` o

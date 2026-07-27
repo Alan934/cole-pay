@@ -46,6 +46,45 @@ async function upsertUser(opts: {
 async function main() {
   console.log("🌱 Sembrando datos de ColePay...");
 
+  // Configuración económica del banco (fila única).
+  // Arranca desactivada: la profe la enciende cuando da el tema.
+  const suggested = {
+    balanceTnaPct: new Prisma.Decimal(30), // saldo disponible
+    goalsTnaPct: new Prisma.Decimal(55), // metas de ahorro
+    goalsLockDays: 7,
+    minBalanceToEarn: new Prisma.Decimal(100),
+  };
+  const existing = await prisma.bankSettings.findUnique({
+    where: { id: "singleton" },
+  });
+  if (!existing) {
+    await prisma.bankSettings.create({
+      data: { id: "singleton", interestEnabled: false, ...suggested },
+    });
+  } else if (existing.balanceTnaPct.equals(0) && existing.goalsTnaPct.equals(0)) {
+    // La fila la creó la migración con ceros y nadie la tocó todavía:
+    // le cargamos las tasas sugeridas. Si ya las configuraste, no se pisan.
+    await prisma.bankSettings.update({
+      where: { id: "singleton" },
+      data: suggested,
+    });
+  }
+
+  // Plazos de plazo fijo ofrecidos por el banco (TNA anual).
+  // A mayor plazo, mayor TNA: premia inmovilizar el dinero más tiempo.
+  const terms = [
+    { days: 7, tnaPct: 70 },
+    { days: 14, tnaPct: 85 },
+    { days: 30, tnaPct: 100 },
+  ];
+  for (const t of terms) {
+    await prisma.depositTerm.upsert({
+      where: { days: t.days },
+      update: {},
+      create: { days: t.days, tnaPct: new Prisma.Decimal(t.tnaPct) },
+    });
+  }
+
   // Grupos
   const grupoA = await prisma.group.upsert({
     where: { name: "3A2026" },
@@ -90,6 +129,7 @@ async function main() {
   }
 
   console.log("✅ Listo. Usuarios de prueba:");
+  console.log("   Rendimientos: desactivados (activalos en /admin/rendimientos)");
   console.log("   ADMIN   → admin@colepay.edu / admin1234");
   console.log("   ALUMNO  → sofia@colepay.edu / alumno1234 (y otros)");
 }

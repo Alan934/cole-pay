@@ -39,7 +39,11 @@ export const authConfig = {
         path.startsWith("/bills") ||
         path.startsWith("/activity") ||
         path.startsWith("/settings") ||
-        path.startsWith("/notifications");
+        path.startsWith("/notifications") ||
+        path.startsWith("/goals") ||
+        path.startsWith("/deposits") ||
+        path.startsWith("/request") ||
+        path.startsWith("/rendimientos");
 
       if (isAdminArea) {
         return isLoggedIn && role === "ADMIN";

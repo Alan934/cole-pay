@@ -51,12 +51,20 @@ enum RequestStatus {
 enum DepositStatus {
   ACTIVE
   WITHDRAWN
+  BROKEN // retirado antes del vencimiento: se devuelve el capital sin interés
+}
+
+// Origen del interés acreditado en una liquidación.
+enum AccrualSource {
+  BALANCE // saldo disponible en la billetera
+  GOAL // dinero apartado en metas de ahorro
 }
 
 enum NotificationType {
   MONEY_RECEIVED
   NEW_INVOICE
   INVOICE_PAID
+  INTEREST_PAID
   GENERIC
 }
 
@@ -97,6 +105,8 @@ model User {
   paymentRequests PaymentRequest[] @relation("RequestedBy")
   paidRequests    PaymentRequest[] @relation("PaidBy")
   recurringCharges RecurringCharge[] @relation("AdminRecurring")
+  interestAccruals InterestAccrual[]
+  quizAttempts     QuizAttempt[]
 
   @@index([groupId])
   @@index([role])
@@ -107,6 +117,10 @@ model Wallet {
   balance Decimal @default(0) @db.Decimal(14, 2)
   cvu     String  @unique // ficticio: 22 dígitos
   alias   String  @unique // editable por el alumno
+
+  // Hasta qué momento ya se liquidaron intereses sobre este saldo.
+  // Evita pagar dos veces el mismo período si la liquidación se repite.
+  lastAccrualAt DateTime?
 
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -133,6 +147,9 @@ model Transaction {
 
   // Vínculo opcional con la factura pagada.
   invoice Invoice?
+
+  // Vínculo opcional con el detalle del cálculo, si es un interés.
+  accrual InterestAccrual?
 
   @@index([senderId])
   @@index([receiverId])
@@ -178,6 +195,7 @@ model Notification {
 }
 
 // Meta de ahorro del alumno. `savedAmount` es dinero apartado del saldo disponible.
+// Rinde a una TNA intermedia, a cambio de un mínimo de días de permanencia.
 model SavingsGoal {
   id           String     @id @default(cuid())
   name         String
@@ -187,6 +205,12 @@ model SavingsGoal {
   createdAt    DateTime   @default(now())
   completedAt  DateTime?
 
+  // Interés total acreditado a esta meta (para mostrárselo al alumno).
+  earnedInterest Decimal   @default(0) @db.Decimal(14, 2)
+  lastAccrualAt  DateTime?
+  // Antes de esta fecha no se puede retirar lo apartado (lo fija el admin).
+  lockedUntil    DateTime?
+
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -194,10 +218,12 @@ model SavingsGoal {
 }
 
 // Plazo fijo: el alumno inmoviliza `principal` y al vencer cobra principal + interés.
+// El interés se calcula por TNA: principal × (tnaPct/100) × (termDays/365).
 model FixedDeposit {
   id           String        @id @default(cuid())
   principal    Decimal       @db.Decimal(14, 2)
-  ratePct      Decimal       @db.Decimal(6, 2) // tasa % sobre el período
+  ratePct      Decimal       @db.Decimal(6, 2) // TNA % anual pactada al constituirlo
+  termDays     Int           @default(30) // plazo en días
   status       DepositStatus @default(ACTIVE)
   createdAt    DateTime      @default(now())
   maturesAt    DateTime
@@ -208,6 +234,109 @@ model FixedDeposit {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/* ------------------------- Rendimientos e inflación ------------------------ */
+
+// Configuración económica global del sistema. Fila única (id = "singleton").
+model BankSettings {
+  id String @id @default("singleton")
+
+  interestEnabled Boolean @default(false)
+
+  // Tasas Nominales Anuales de cada nivel de liquidez.
+  balanceTnaPct Decimal @default(0) @db.Decimal(6, 2) // saldo disponible
+  goalsTnaPct   Decimal @default(0) @db.Decimal(6, 2) // metas de ahorro
+  goalsLockDays Int     @default(0) // días mínimos de permanencia en una meta
+
+  // Saldo mínimo para generar intereses y piso de acreditación.
+  minBalanceToEarn Decimal @default(0) @db.Decimal(14, 2)
+
+  // Última liquidación efectuada sobre saldos y metas.
+  lastAccrualAt DateTime?
+
+  // --- Inflación ---
+  inflationEnabled  Boolean  @default(false)
+  monthlyInflationPct Decimal @default(0) @db.Decimal(6, 2)
+  // Índice de precios: arranca en 100 y sube con cada ajuste.
+  priceIndex        Decimal  @default(100) @db.Decimal(14, 4)
+  lastInflationAt   DateTime?
+
+  updatedAt DateTime @updatedAt
+
+  terms DepositTerm[]
+}
+
+// Plazo de plazo fijo ofrecido por el banco. Lo administra el admin.
+model DepositTerm {
+  id     String  @id @default(cuid())
+  days   Int     @unique
+  tnaPct Decimal @db.Decimal(6, 2)
+  active Boolean @default(true)
+
+  settingsId String       @default("singleton")
+  settings   BankSettings @relation(fields: [settingsId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active])
+}
+
+// Una corrida de liquidación de intereses (auditoría para el admin).
+model InterestRun {
+  id       String   @id @default(cuid())
+  runAt    DateTime @default(now())
+  days     Int // días liquidados en esta corrida
+  periodEnd DateTime // hasta qué momento quedó liquidado
+  balanceTnaPct Decimal @db.Decimal(6, 2)
+  goalsTnaPct   Decimal @db.Decimal(6, 2)
+  totalPaid     Decimal @default(0) @db.Decimal(14, 2)
+  walletsCount  Int     @default(0)
+  // "CRON" (automática) o "MANUAL" (forzada desde el panel).
+  trigger  String   @default("CRON")
+
+  accruals InterestAccrual[]
+
+  @@index([runAt])
+}
+
+// Detalle del interés acreditado a un alumno en una corrida.
+// Guarda los insumos del cálculo para poder mostrarle la fórmula al alumno.
+model InterestAccrual {
+  id       String        @id @default(cuid())
+  source   AccrualSource
+  base     Decimal       @db.Decimal(14, 2) // capital sobre el que se calculó
+  tnaPct   Decimal       @db.Decimal(6, 2)
+  days     Int
+  interest Decimal       @db.Decimal(14, 2)
+  createdAt DateTime     @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  runId String?
+  run   InterestRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  transactionId String?      @unique
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([runId])
+}
+
+// Intento de un alumno en el quiz de rendimientos.
+model QuizAttempt {
+  id        String   @id @default(cuid())
+  questionId String
+  correct   Boolean
+  answer    String
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, questionId])
 }
 
 // Pedido de cobro (request money) que un alumno comparte por link/QR.

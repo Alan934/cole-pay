@@ -29,6 +29,9 @@ function cvu(seed: number): string {
 export async function resetDb() {
   await db.notification.deleteMany();
   await db.paymentRequest.deleteMany();
+  await db.quizAttempt.deleteMany();
+  await db.interestAccrual.deleteMany();
+  await db.interestRun.deleteMany();
   await db.savingsGoal.deleteMany();
   await db.fixedDeposit.deleteMany();
   await db.invoice.deleteMany();
@@ -37,6 +40,58 @@ export async function resetDb() {
   await db.wallet.deleteMany();
   await db.user.deleteMany();
   await db.group.deleteMany();
+}
+
+/** TNA de cada plazo fijo en los tests (coincide con el seed de producción). */
+export const TEST_TERMS = [
+  { days: 7, tnaPct: 70 },
+  { days: 14, tnaPct: 85 },
+  { days: 30, tnaPct: 100 },
+];
+
+/**
+ * Deja la configuración económica en un estado conocido.
+ * Por defecto los rendimientos están **apagados**, igual que en producción:
+ * cada test que los necesite los enciende explícitamente.
+ */
+export async function resetSettings(
+  overrides: Partial<{
+    interestEnabled: boolean;
+    balanceTnaPct: number;
+    goalsTnaPct: number;
+    goalsLockDays: number;
+    minBalanceToEarn: number;
+    inflationEnabled: boolean;
+    monthlyInflationPct: number;
+  }> = {},
+) {
+  const base = {
+    interestEnabled: false,
+    balanceTnaPct: D(overrides.balanceTnaPct ?? 36.5),
+    goalsTnaPct: D(overrides.goalsTnaPct ?? 73),
+    goalsLockDays: overrides.goalsLockDays ?? 0,
+    minBalanceToEarn: D(overrides.minBalanceToEarn ?? 0),
+    lastAccrualAt: null,
+    inflationEnabled: overrides.inflationEnabled ?? false,
+    monthlyInflationPct: D(overrides.monthlyInflationPct ?? 0),
+    priceIndex: D(100),
+    lastInflationAt: null,
+  };
+  const data = { ...base, interestEnabled: overrides.interestEnabled ?? false };
+
+  await db.bankSettings.upsert({
+    where: { id: "singleton" },
+    update: data,
+    create: { id: "singleton", ...data },
+  });
+
+  for (const t of TEST_TERMS) {
+    await db.depositTerm.upsert({
+      where: { days: t.days },
+      update: { tnaPct: D(t.tnaPct), active: true },
+      create: { days: t.days, tnaPct: D(t.tnaPct) },
+    });
+  }
 }
 
 /**
@@ -144,6 +199,7 @@ export async function seedDb() {
 
 export async function resetAndSeed() {
   await resetDb();
+  await resetSettings();
   return seedDb();
 }
 

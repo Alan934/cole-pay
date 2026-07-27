@@ -2,7 +2,15 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { Target, Plus, PiggyBank, ArrowDownToLine, Trash2 } from "lucide-react";
+import {
+  Target,
+  Plus,
+  PiggyBank,
+  ArrowDownToLine,
+  Trash2,
+  Lock,
+  TrendingUp,
+} from "lucide-react";
 import {
   createGoal,
   moveGoalFunds,
@@ -13,14 +21,18 @@ import { Card, CardTitle } from "@/components/ui/Card";
 import { Input, Label } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, formatDate } from "@/lib/utils";
+import { simpleInterest } from "@/lib/interest";
 
 export type GoalView = {
   id: string;
   name: string;
   target: number;
   saved: number;
+  earned: number;
   completed: boolean;
+  /** Fecha hasta la que no se puede retirar, o null si está libre. */
+  lockedUntil: string | null;
 };
 
 function Feedback({ state }: { state: ActionResult | null }) {
@@ -41,12 +53,42 @@ function Feedback({ state }: { state: ActionResult | null }) {
 export function GoalsManager({
   goals,
   balance,
+  tnaPct,
+  lockDays,
 }: {
   goals: GoalView[];
   balance: number;
+  tnaPct: number;
+  lockDays: number;
 }) {
   return (
     <div className="flex flex-col gap-5">
+      {tnaPct > 0 && (
+        <Card className="border-accent/25 bg-accent/5">
+          <div className="mb-1 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-accent" />
+            <CardTitle className="text-ink/80">
+              Lo que apartás acá rinde {tnaPct}% TNA
+            </CardTitle>
+          </div>
+          <p className="text-sm leading-relaxed text-ink/60">
+            El interés se suma solo a la meta todos los días, así que llegás
+            antes.
+            {lockDays > 0 && (
+              <>
+                {" "}
+                A cambio, cada vez que apartás plata queda{" "}
+                <span className="font-medium text-ink/80">
+                  bloqueada {lockDays} día(s)
+                </span>{" "}
+                antes de poder retirarla. Ese es el trato: más tasa a cambio de
+                menos libertad.
+              </>
+            )}
+          </p>
+        </Card>
+      )}
+
       <CreateGoal />
       {goals.length === 0 ? (
         <Card className="flex flex-col items-center gap-2 py-10 text-center text-ink/40">
@@ -56,7 +98,9 @@ export function GoalsManager({
           </p>
         </Card>
       ) : (
-        goals.map((g) => <GoalCard key={g.id} goal={g} balance={balance} />)
+        goals.map((g) => (
+          <GoalCard key={g.id} goal={g} balance={balance} tnaPct={tnaPct} />
+        ))
       )}
     </div>
   );
@@ -112,9 +156,19 @@ function CreateGoal() {
   );
 }
 
-function GoalCard({ goal, balance }: { goal: GoalView; balance: number }) {
+function GoalCard({
+  goal,
+  balance,
+  tnaPct,
+}: {
+  goal: GoalView;
+  balance: number;
+  tnaPct: number;
+}) {
   const [mode, setMode] = useState<"deposit" | "withdraw" | null>(null);
   const pct = Math.min(100, Math.round((goal.saved / goal.target) * 100));
+  const locked = goal.lockedUntil !== null;
+  const perDay = simpleInterest(goal.saved, tnaPct, 1);
 
   return (
     <Card>
@@ -145,6 +199,37 @@ function GoalCard({ goal, balance }: { goal: GoalView; balance: number }) {
         />
       </div>
 
+      {(perDay > 0 || goal.earned > 0) && (
+        <p className="mb-3 text-xs text-ink/50">
+          {perDay > 0 && (
+            <>
+              Genera{" "}
+              <span className="font-medium text-accent">
+                {formatMoney(perDay)}
+              </span>{" "}
+              por día
+            </>
+          )}
+          {perDay > 0 && goal.earned > 0 && " · "}
+          {goal.earned > 0 && (
+            <>
+              Ya sumó{" "}
+              <span className="font-medium text-accent">
+                {formatMoney(goal.earned)}
+              </span>{" "}
+              de interés
+            </>
+          )}
+        </p>
+      )}
+
+      {locked && (
+        <p className="mb-3 flex items-center gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/5 px-2.5 py-1.5 text-xs text-amber-300">
+          <Lock className="h-3 w-3 shrink-0" />
+          Podés retirar a partir del {formatDate(goal.lockedUntil!)}
+        </p>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="secondary" onClick={() => setMode("deposit")}>
           <PiggyBank className="h-4 w-4" /> Apartar
@@ -153,7 +238,7 @@ function GoalCard({ goal, balance }: { goal: GoalView; balance: number }) {
           size="sm"
           variant="ghost"
           onClick={() => setMode("withdraw")}
-          disabled={goal.saved <= 0}
+          disabled={goal.saved <= 0 || locked}
         >
           <ArrowDownToLine className="h-4 w-4" /> Retirar
         </Button>

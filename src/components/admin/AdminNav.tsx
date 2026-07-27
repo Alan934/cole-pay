@@ -10,6 +10,7 @@ import {
   ListOrdered,
   Repeat,
   BarChart3,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,7 @@ const items = [
   { href: "/admin/groups", label: "Grupos", icon: FolderKanban },
   { href: "/admin/services", label: "Servicios", icon: Receipt },
   { href: "/admin/recurring", label: "Recurrentes", icon: Repeat },
+  { href: "/admin/rendimientos", label: "Rendimientos", icon: TrendingUp },
   { href: "/admin/transactions", label: "Transacciones", icon: ListOrdered },
   { href: "/admin/reports", label: "Reportes", icon: BarChart3 },
 ];

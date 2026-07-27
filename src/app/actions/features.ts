@@ -10,16 +10,12 @@ import {
   createDepositSchema,
   paymentRequestSchema,
 } from "@/lib/validations";
+import { getSettings } from "@/lib/settings";
+import { simpleInterest, addDays } from "@/lib/interest";
+import { formatMoney } from "@/lib/utils";
 import type { ActionResult } from "@/app/actions/student";
 
 const D = (v: number | string) => new Prisma.Decimal(v);
-
-/** Tasa de interés según el plazo (en % sobre el período). */
-const DEPOSIT_RATES: Record<number, number> = {
-  7: 2,
-  14: 5,
-  30: 12,
-};
 
 /* ---------------------------- Metas de ahorro ---------------------------- */
 
@@ -63,6 +59,10 @@ export async function moveGoalFunds(
   const { goalId, amount, direction } = parsed.data;
   const amountDec = D(amount);
 
+  // Las metas rinden a cambio de un mínimo de permanencia que fija el admin.
+  const settings = await getSettings();
+  const lockDays = settings.interestEnabled ? settings.goalsLockDays : 0;
+
   try {
     await prisma.$transaction(async (tx) => {
       const goal = await tx.savingsGoal.findUnique({ where: { id: goalId } });
@@ -84,6 +84,9 @@ export async function moveGoalFunds(
           where: { id: goalId },
           data: {
             savedAmount: newSaved,
+            // Cada vez que aparta plata se reinicia el plazo mínimo.
+            lockedUntil:
+              lockDays > 0 ? addDays(new Date(), lockDays) : goal.lockedUntil,
             status: newSaved.greaterThanOrEqualTo(goal.targetAmount)
               ? "COMPLETED"
               : "ACTIVE",
@@ -105,6 +108,8 @@ export async function moveGoalFunds(
       } else {
         if (goal.savedAmount.lessThan(amountDec))
           throw new Error("AHORRO_INSUFICIENTE");
+        if (goal.lockedUntil && goal.lockedUntil > new Date())
+          throw new Error("BLOQUEADA");
         await tx.wallet.update({
           where: { userId: me.id },
           data: { balance: { increment: amountDec } },
@@ -137,6 +142,13 @@ export async function moveGoalFunds(
       return { ok: false, error: "No tenés saldo suficiente para apartar." };
     if (msg === "AHORRO_INSUFICIENTE")
       return { ok: false, error: "No hay tanto ahorrado en esta meta." };
+    if (msg === "BLOQUEADA")
+      return {
+        ok: false,
+        error:
+          "Todavía no podés retirar de esta meta: falta que se cumpla el " +
+          "plazo mínimo de permanencia.",
+      };
     if (msg === "NO_ENCONTRADA")
       return { ok: false, error: "Meta no encontrada." };
     return { ok: false, error: "No se pudo completar la operación." };
@@ -144,6 +156,7 @@ export async function moveGoalFunds(
 
   revalidatePath("/goals");
   revalidatePath("/dashboard");
+  revalidatePath("/rendimientos");
   return {
     ok: true,
     message:
@@ -164,6 +177,13 @@ export async function deleteGoal(
     await prisma.$transaction(async (tx) => {
       const goal = await tx.savingsGoal.findUnique({ where: { id: goalId } });
       if (!goal || goal.userId !== me.id) throw new Error("NO_ENCONTRADA");
+      // Borrar la meta no puede ser un atajo para saltarse el plazo mínimo.
+      if (
+        goal.savedAmount.greaterThan(0) &&
+        goal.lockedUntil &&
+        goal.lockedUntil > new Date()
+      )
+        throw new Error("BLOQUEADA");
       // Devolver lo ahorrado al saldo disponible.
       if (goal.savedAmount.greaterThan(0)) {
         await tx.wallet.update({
@@ -173,7 +193,14 @@ export async function deleteGoal(
       }
       await tx.savingsGoal.delete({ where: { id: goalId } });
     });
-  } catch {
+  } catch (e) {
+    if (e instanceof Error && e.message === "BLOQUEADA")
+      return {
+        ok: false,
+        error:
+          "No podés eliminar la meta mientras el dinero esté bloqueado por " +
+          "el plazo mínimo de permanencia.",
+      };
     return { ok: false, error: "No se pudo eliminar la meta." };
   }
 
@@ -198,7 +225,16 @@ export async function createDeposit(
 
   const { principal, termDays } = parsed.data;
   const principalDec = D(principal);
-  const rate = DEPOSIT_RATES[termDays] ?? 0;
+
+  // Los plazos y sus TNA los define el admin desde el panel.
+  const term = await prisma.depositTerm.findUnique({
+    where: { days: termDays },
+  });
+  if (!term || !term.active)
+    return { ok: false, error: "Ese plazo ya no está disponible." };
+
+  const tnaPct = Number(term.tnaPct);
+  const interest = simpleInterest(principal, tnaPct, termDays);
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -213,22 +249,20 @@ export async function createDeposit(
         data: { balance: { decrement: principalDec } },
       });
 
-      const matures = new Date();
-      matures.setDate(matures.getDate() + termDays);
-
       await tx.fixedDeposit.create({
         data: {
           userId: me.id,
           principal: principalDec,
-          ratePct: D(rate),
-          maturesAt: matures,
+          ratePct: term.tnaPct,
+          termDays,
+          maturesAt: addDays(new Date(), termDays),
         },
       });
       await tx.transaction.create({
         data: {
           type: "SAVINGS",
           amount: principalDec,
-          description: `Plazo fijo a ${termDays} días`,
+          description: `Plazo fijo a ${termDays} días (${tnaPct}% TNA)`,
           category: "Ahorro",
           senderId: me.id,
           receiverId: me.id,
@@ -243,7 +277,13 @@ export async function createDeposit(
 
   revalidatePath("/deposits");
   revalidatePath("/dashboard");
-  return { ok: true, message: "Plazo fijo creado. ¡Ahora esperá que venza!" };
+  revalidatePath("/rendimientos");
+  return {
+    ok: true,
+    message:
+      `Plazo fijo creado. Al vencer cobrás ${formatMoney(principal + interest)} ` +
+      `(${formatMoney(interest)} de interés).`,
+  };
 }
 
 /** Retirar un plazo fijo vencido: devuelve principal + interés (pagado por el banco). */
@@ -261,7 +301,13 @@ export async function withdrawDeposit(
       if (dep.status !== "ACTIVE") throw new Error("YA_RETIRADO");
       if (dep.maturesAt > new Date()) throw new Error("NO_VENCIDO");
 
-      const interest = dep.principal.times(dep.ratePct).dividedBy(100);
+      // Interés por TNA: principal × (TNA/100) × (días/365).
+      const interestNum = simpleInterest(
+        Number(dep.principal),
+        Number(dep.ratePct),
+        dep.termDays,
+      );
+      const interest = D(interestNum);
       const total = dep.principal.plus(interest);
 
       await tx.wallet.update({
@@ -277,24 +323,37 @@ export async function withdrawDeposit(
         },
       });
       // El interés es "emitido" por el banco.
-      await tx.transaction.create({
+      const transaction = await tx.transaction.create({
         data: {
           type: "INTEREST",
           amount: interest,
-          description: "Interés de plazo fijo",
+          description: `Interés de plazo fijo (${Number(dep.ratePct)}% TNA a ${dep.termDays} días)`,
           category: "Ahorro",
           senderId: null,
           receiverId: me.id,
         },
       });
-      return { interest, total };
+      // Detalle del cálculo, para que el alumno pueda ver la cuenta.
+      await tx.interestAccrual.create({
+        data: {
+          source: "BALANCE",
+          base: dep.principal,
+          tnaPct: dep.ratePct,
+          days: dep.termDays,
+          interest,
+          userId: me.id,
+          transactionId: transaction.id,
+        },
+      });
+      return { interest: interestNum, total: Number(total) };
     });
 
     revalidatePath("/deposits");
     revalidatePath("/dashboard");
+    revalidatePath("/rendimientos");
     return {
       ok: true,
-      message: `Cobraste ${payout.total.toFixed(2)} (interés: ${payout.interest.toFixed(2)}).`,
+      message: `Cobraste ${formatMoney(payout.total)} (interés: ${formatMoney(payout.interest)}).`,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
@@ -303,6 +362,70 @@ export async function withdrawDeposit(
     if (msg === "YA_RETIRADO")
       return { ok: false, error: "Este plazo fijo ya fue retirado." };
     return { ok: false, error: "No se pudo retirar el plazo fijo." };
+  }
+}
+
+/**
+ * Romper un plazo fijo antes del vencimiento: se recupera el capital pero
+ * **se pierde todo el interés**. Es el costo real de haber inmovilizado
+ * la plata y después arrepentirse.
+ */
+export async function breakDeposit(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const me = await requireStudent();
+  const depositId = String(formData.get("depositId") || "");
+
+  try {
+    const principal = await prisma.$transaction(async (tx) => {
+      const dep = await tx.fixedDeposit.findUnique({ where: { id: depositId } });
+      if (!dep || dep.userId !== me.id) throw new Error("NO_ENCONTRADO");
+      if (dep.status !== "ACTIVE") throw new Error("YA_RETIRADO");
+      if (dep.maturesAt <= new Date()) throw new Error("YA_VENCIDO");
+
+      await tx.wallet.update({
+        where: { userId: me.id },
+        data: { balance: { increment: dep.principal } },
+      });
+      await tx.fixedDeposit.update({
+        where: { id: depositId },
+        data: {
+          status: "BROKEN",
+          withdrawnAt: new Date(),
+          payoutAmount: dep.principal,
+        },
+      });
+      await tx.transaction.create({
+        data: {
+          type: "SAVINGS",
+          amount: dep.principal,
+          description: "Plazo fijo roto antes de tiempo (sin interés)",
+          category: "Ahorro",
+          senderId: me.id,
+          receiverId: me.id,
+        },
+      });
+      return Number(dep.principal);
+    });
+
+    revalidatePath("/deposits");
+    revalidatePath("/dashboard");
+    revalidatePath("/rendimientos");
+    return {
+      ok: true,
+      message: `Recuperaste tu capital (${formatMoney(principal)}), pero perdiste el interés.`,
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg === "YA_VENCIDO")
+      return {
+        ok: false,
+        error: "Este plazo ya venció: cobralo entero, no hace falta romperlo.",
+      };
+    if (msg === "YA_RETIRADO")
+      return { ok: false, error: "Este plazo fijo ya fue retirado." };
+    return { ok: false, error: "No se pudo romper el plazo fijo." };
   }
 }
 

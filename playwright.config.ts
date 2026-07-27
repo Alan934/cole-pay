@@ -12,6 +12,9 @@ export const TEST_DATABASE_URL =
 const PORT = 3100;
 export const BASE_URL = `http://localhost:${PORT}`;
 
+/** Secreto del cron de rendimientos usado por los tests. */
+export const TEST_CRON_SECRET = "e2e-cron-secret";
+
 export default defineConfig({
   testDir: "./e2e",
   // Serial: los tests comparten la base y la resetean entre casos.
@@ -36,6 +39,7 @@ export default defineConfig({
       AUTH_SECRET: "e2e-test-secret-0123456789abcdefghijklmnop",
       AUTH_URL: BASE_URL,
       AUTH_TRUST_HOST: "true",
+      CRON_SECRET: TEST_CRON_SECRET,
     },
   },
 });

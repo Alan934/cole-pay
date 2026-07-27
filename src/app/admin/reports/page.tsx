@@ -1,4 +1,11 @@
-import { Download, Trophy, PiggyBank, Coins, Sparkles } from "lucide-react";
+import {
+  Download,
+  Trophy,
+  PiggyBank,
+  Coins,
+  Sparkles,
+  TrendingUp,
+} from "lucide-react";
 import { requireAdmin } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatMoney } from "@/lib/utils";
@@ -8,7 +15,7 @@ import { Badge } from "@/components/ui/Badge";
 export default async function ReportsPage() {
   await requireAdmin();
 
-  const [students, issuedAgg, savedAgg, groups] = await Promise.all([
+  const [students, issuedAgg, savedAgg, groups, interestAgg] = await Promise.all([
     prisma.user.findMany({
       where: { role: "STUDENT" },
       include: {
@@ -30,6 +37,10 @@ export default async function ReportsPage() {
         },
       },
       orderBy: { name: "asc" },
+    }),
+    prisma.transaction.aggregate({
+      where: { type: "INTEREST" },
+      _sum: { amount: true },
     }),
   ]);
 
@@ -54,6 +65,8 @@ export default async function ReportsPage() {
 
   const issued = Number(issuedAgg._sum.amount ?? 0);
   const totalSaved = Number(savedAgg._sum.savedAmount ?? 0);
+  // Los intereses también son dinero nuevo: el banco los emite al pagarlos.
+  const interestPaid = Number(interestAgg._sum.amount ?? 0);
   const circulation = ranked.reduce((acc, r) => acc + r.balance, 0);
 
   const medal = ["🥇", "🥈", "🥉"];
@@ -84,9 +97,10 @@ export default async function ReportsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat icon={Coins} label="En circulación" value={formatMoney(circulation)} tone="text-accent" />
         <Stat icon={Sparkles} label="Dinero emitido" value={formatMoney(issued)} tone="text-violet" />
+        <Stat icon={TrendingUp} label="Pagado en intereses" value={formatMoney(interestPaid)} tone="text-violet" />
         <Stat icon={PiggyBank} label="Total ahorrado" value={formatMoney(totalSaved)} tone="text-accent" />
         <Stat icon={Trophy} label="Alumnos" value={ranked.length.toString()} tone="text-amber-300" />
       </div>

@@ -1,4 +1,5 @@
 import type { TxView } from "@/components/student/TransactionRow";
+import { breakdown } from "@/lib/interest";
 
 type TxWithUsers = {
   id: string;
@@ -10,6 +11,12 @@ type TxWithUsers = {
   receiverId: string | null;
   sender: { name: string } | null;
   receiver: { name: string } | null;
+  /** Detalle del cálculo, sólo en las transacciones de interés. */
+  accrual?: {
+    base: { toString(): string };
+    tnaPct: { toString(): string };
+    days: number;
+  } | null;
 };
 
 /** Convierte una transacción de Prisma en una vista orientada al usuario. */
@@ -20,6 +27,7 @@ export function toTxView(tx: TxWithUsers, userId: string): TxView {
   else if (incoming) counterparty = tx.sender?.name ?? "Sistema";
   else counterparty = tx.receiver?.name ?? "Sistema";
 
+  const acc = tx.accrual;
   return {
     id: tx.id,
     type: tx.type,
@@ -28,5 +36,17 @@ export function toTxView(tx: TxWithUsers, userId: string): TxView {
     timestamp: tx.timestamp.toISOString(),
     incoming,
     counterparty,
+    accrual: acc
+      ? {
+          base: Number(acc.base.toString()),
+          tnaPct: Number(acc.tnaPct.toString()),
+          days: acc.days,
+          formula: breakdown(
+            Number(acc.base.toString()),
+            Number(acc.tnaPct.toString()),
+            acc.days,
+          ).formula,
+        }
+      : null,
   };
 }
