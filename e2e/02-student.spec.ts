@@ -242,6 +242,8 @@ test.describe("Flujo del alumno", () => {
     await loginStudent(page, USERS.sofia);
     await page.goto("/goals");
     await page.getByRole("button", { name: "Eliminar meta" }).click();
+    await expectMainContains(page, "Esto no se puede deshacer");
+    await page.getByRole("button", { name: "Sí, eliminar" }).click();
     await expect.poll(async () => balanceOf(USERS.sofia), { timeout: 15_000 }).toBe(5000);
     expect(await db.savingsGoal.count()).toBe(0);
   });
@@ -330,6 +332,8 @@ test.describe("Flujo del alumno", () => {
     expect(await db.paymentRequest.count({ where: { status: "PENDING" } })).toBe(1);
 
     await page.getByRole("button", { name: "Cancelar pedido" }).click();
+    await expectMainContains(page, "no se puede reactivar");
+    await page.getByRole("button", { name: "Sí, cancelar" }).click();
     await expect
       .poll(async () => db.paymentRequest.count({ where: { status: "CANCELLED" } }), {
         timeout: 15_000,

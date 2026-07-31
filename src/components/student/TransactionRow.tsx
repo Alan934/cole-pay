@@ -94,7 +94,7 @@ function iconFor(type: string, incoming: boolean) {
   if (type === "INTEREST")
     return { icon: TrendingUp, tone: "bg-accent/15 text-accent" };
   if (type === "PAYMENT")
-    return { icon: Receipt, tone: "bg-amber-500/15 text-amber-300" };
+    return { icon: Receipt, tone: "bg-warning/15 text-warning" };
   if (incoming)
     return { icon: ArrowDownLeft, tone: "bg-accent/15 text-accent" };
   return { icon: ArrowUpRight, tone: "bg-raised2 text-ink/70" };

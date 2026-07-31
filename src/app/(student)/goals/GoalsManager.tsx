@@ -42,7 +42,7 @@ function Feedback({ state }: { state: ActionResult | null }) {
       className={
         state.ok
           ? "text-sm text-accent"
-          : "text-sm text-red-300"
+          : "text-sm text-danger"
       }
     >
       {state.ok ? state.message : state.error}
@@ -224,7 +224,7 @@ function GoalCard({
       )}
 
       {locked && (
-        <p className="mb-3 flex items-center gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/5 px-2.5 py-1.5 text-xs text-amber-300">
+        <p className="mb-3 flex items-center gap-1.5 rounded-lg border border-warning/25 bg-warning/5 px-2.5 py-1.5 text-xs text-warning">
           <Lock className="h-3 w-3 shrink-0" />
           Podés retirar a partir del {formatDate(goal.lockedUntil!)}
         </p>
@@ -242,7 +242,7 @@ function GoalCard({
         >
           <ArrowDownToLine className="h-4 w-4" /> Retirar
         </Button>
-        <DeleteGoal goalId={goal.id} />
+        <DeleteGoal goal={goal} />
       </div>
 
       {mode && (
@@ -320,32 +320,80 @@ function MoveForm({
   );
 }
 
-function DeleteGoal({ goalId }: { goalId: string }) {
+/** Eliminar pide confirmación: se borra la meta y el ahorro vuelve al saldo. */
+function DeleteGoal({ goal }: { goal: GoalView }) {
   const [state, formAction] = useActionState<ActionResult | null, FormData>(
     deleteGoal,
     null,
   );
-  useEffect(() => {
-    void state;
-  }, [state]);
+  const [confirming, setConfirming] = useState(false);
+
   return (
-    <form action={formAction} className="ml-auto">
-      <input type="hidden" name="goalId" value={goalId} />
+    <>
       <button
-        type="submit"
+        type="button"
         title="Eliminar meta"
-        className="grid h-8 w-8 place-items-center rounded-lg text-ink/40 hover:bg-red-500/15 hover:text-red-300"
+        aria-label="Eliminar meta"
+        aria-expanded={confirming}
+        onClick={() => setConfirming((c) => !c)}
+        className={`ml-auto grid h-8 w-8 place-items-center rounded-lg transition-colors hover:bg-danger/15 hover:text-danger ${
+          confirming ? "bg-danger/15 text-danger" : "text-ink/40"
+        }`}
       >
         <Trash2 className="h-4 w-4" />
       </button>
-    </form>
+
+      {confirming && (
+        <div className="mt-1 w-full rounded-xl border border-danger/30 bg-danger/5 p-3">
+          <p className="text-xs leading-relaxed text-ink/70">
+            ¿Seguro que querés eliminar{" "}
+            <span className="font-semibold">{goal.name}</span>?
+            {goal.saved > 0 && (
+              <>
+                {" "}
+                Los{" "}
+                <span className="font-semibold">
+                  {formatMoney(goal.saved)}
+                </span>{" "}
+                que tenés ahorrados vuelven a tu saldo disponible.
+              </>
+            )}{" "}
+            Esto no se puede deshacer.
+          </p>
+          <div className="mt-3 flex items-center gap-2">
+            <form action={formAction}>
+              <input type="hidden" name="goalId" value={goal.id} />
+              <SubmitBtn label="Sí, eliminar" variant="danger" />
+            </form>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              className="text-xs text-ink/50 hover:text-ink"
+            >
+              Mejor no
+            </button>
+          </div>
+          {state && !state.ok && (
+            <p className="mt-2 text-xs text-danger">{state.error}</p>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 
-function SubmitBtn({ label, icon }: { label: string; icon?: React.ReactNode }) {
+function SubmitBtn({
+  label,
+  icon,
+  variant,
+}: {
+  label: string;
+  icon?: React.ReactNode;
+  variant?: "primary" | "danger";
+}) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="sm" disabled={pending}>
+    <Button type="submit" size="sm" variant={variant} disabled={pending}>
       {icon}
       {pending ? "..." : label}
     </Button>

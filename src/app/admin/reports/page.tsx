@@ -102,14 +102,14 @@ export default async function ReportsPage() {
         <Stat icon={Sparkles} label="Dinero emitido" value={formatMoney(issued)} tone="text-violet" />
         <Stat icon={TrendingUp} label="Pagado en intereses" value={formatMoney(interestPaid)} tone="text-violet" />
         <Stat icon={PiggyBank} label="Total ahorrado" value={formatMoney(totalSaved)} tone="text-accent" />
-        <Stat icon={Trophy} label="Alumnos" value={ranked.length.toString()} tone="text-amber-300" />
+        <Stat icon={Trophy} label="Alumnos" value={ranked.length.toString()} tone="text-warning" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Ranking */}
         <Card className="lg:col-span-2">
           <div className="mb-3 flex items-center gap-2">
-            <Trophy className="h-5 w-5 text-amber-300" />
+            <Trophy className="h-5 w-5 text-warning" />
             <CardTitle className="text-ink/80">Ranking por patrimonio</CardTitle>
           </div>
           <div className="divide-y divide-raised">

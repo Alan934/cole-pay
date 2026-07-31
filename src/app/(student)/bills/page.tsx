@@ -43,7 +43,7 @@ export default async function BillsPage() {
             const canPay = balance >= amount;
             return (
               <Card key={inv.id} className="flex items-center gap-4">
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-amber-500/15 text-amber-300">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-warning/15 text-warning">
                   <Receipt className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -55,7 +55,7 @@ export default async function BillsPage() {
                     </p>
                   )}
                   {!canPay && (
-                    <p className="mt-0.5 text-xs text-red-300">
+                    <p className="mt-0.5 text-xs text-danger">
                       Saldo insuficiente
                     </p>
                   )}

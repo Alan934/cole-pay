@@ -193,7 +193,7 @@ function TasasForm({ settings }: { settings: BankSettingsView }) {
         </div>
 
         {balanceTna > 0 && goalsTna <= balanceTna && (
-          <p className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+          <p className="rounded-xl border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-warning">
             Ojo: las metas rinden igual o menos que el saldo disponible. Así no
             hay ningún motivo para ahorrar y se pierde la lección.
           </p>
@@ -413,7 +413,7 @@ function InflationForm({ settings }: { settings: BankSettingsView }) {
   return (
     <Card>
       <div className="mb-3 flex items-center gap-2">
-        <Flame className="h-5 w-5 text-amber-300" />
+        <Flame className="h-5 w-5 text-warning" />
         <CardTitle className="text-ink/80">Inflación</CardTitle>
       </div>
       <p className="mb-4 text-sm text-ink/50">
@@ -485,7 +485,7 @@ function EarnersCard({ earners }: { earners: { name: string; total: number }[] }
   return (
     <Card>
       <div className="mb-3 flex items-center gap-2">
-        <Trophy className="h-5 w-5 text-amber-300" />
+        <Trophy className="h-5 w-5 text-warning" />
         <CardTitle className="text-ink/80">
           Quiénes más ganaron con intereses
         </CardTitle>

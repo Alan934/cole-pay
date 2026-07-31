@@ -28,6 +28,12 @@ const config: Config = {
           soft: "#0b3d31",
         },
 
+        // Estados semánticos: cambian de tono con el tema para no perder
+        // contraste. Usar estos en vez de amber-300 / red-300 / emerald-300.
+        warning: v("--warning"),
+        danger: v("--danger"),
+        success: v("--success"),
+
         // Paleta oscura fija — usada por la tarjeta de saldo (siempre oscura)
         base: {
           950: "#0a0b0f",

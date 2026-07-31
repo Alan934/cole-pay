@@ -42,7 +42,7 @@ export function InvoiceRowActions({ invoice }: { invoice: EditableInvoice }) {
         <button
           onClick={() => setDialog("cancel")}
           title="Anular"
-          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-red-300 hover:bg-red-500/15"
+          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-danger hover:bg-danger/15"
         >
           <Ban className="h-3.5 w-3.5" />
         </button>
@@ -184,7 +184,7 @@ function CancelDialog({
   return (
     <Overlay onClose={onClose}>
       <div className="mb-2 flex items-center gap-2">
-        <div className="grid h-10 w-10 place-items-center rounded-full bg-red-500/15 text-red-300">
+        <div className="grid h-10 w-10 place-items-center rounded-full bg-danger/15 text-danger">
           <Ban className="h-5 w-5" />
         </div>
         <CardTitle className="text-base text-ink/90">Anular cobro</CardTitle>

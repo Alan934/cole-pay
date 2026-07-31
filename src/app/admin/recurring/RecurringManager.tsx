@@ -190,7 +190,7 @@ function RunNow({ dueCount }: { dueCount: number }) {
   return (
     <form action={formAction} className="flex items-center gap-2">
       {state && (
-        <span className={state.ok ? "text-xs text-accent" : "text-xs text-red-300"}>
+        <span className={state.ok ? "text-xs text-accent" : "text-xs text-danger"}>
           {state.ok ? state.message : state.error}
         </span>
       )}
@@ -236,7 +236,7 @@ function RecurringCard({ c }: { c: RecurringView }) {
           <p className="text-xs text-ink/40">
             Próximo: {formatDate(c.nextRunAt)}
             {c.due && c.active && (
-              <span className="ml-1 text-amber-300">· vencido</span>
+              <span className="ml-1 text-warning">· vencido</span>
             )}
           </p>
         </div>

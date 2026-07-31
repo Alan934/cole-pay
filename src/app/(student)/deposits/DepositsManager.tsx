@@ -41,7 +41,7 @@ export type TermOption = { days: number; tnaPct: number };
 function Feedback({ state }: { state: ActionResult | null }) {
   if (!state) return null;
   return (
-    <p className={state.ok ? "text-sm text-accent" : "text-sm text-red-300"}>
+    <p className={state.ok ? "text-sm text-accent" : "text-sm text-danger"}>
       {state.ok ? state.message : state.error}
     </p>
   );
@@ -322,7 +322,7 @@ function BreakDeposit({ d }: { d: DepositView }) {
   if (state) {
     return (
       <p
-        className={`mt-2 text-xs ${state.ok ? "text-ink/50" : "text-red-300"}`}
+        className={`mt-2 text-xs ${state.ok ? "text-ink/50" : "text-danger"}`}
       >
         {state.ok ? state.message : state.error}
       </p>
@@ -334,7 +334,7 @@ function BreakDeposit({ d }: { d: DepositView }) {
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="mt-2 inline-flex items-center gap-1.5 text-xs text-ink/40 underline-offset-2 transition-colors hover:text-ink/70 hover:underline"
+        className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs font-medium text-warning transition-colors hover:bg-warning/20"
       >
         <Unlock className="h-3 w-3" />
         Necesito la plata ahora
@@ -343,13 +343,13 @@ function BreakDeposit({ d }: { d: DepositView }) {
   }
 
   return (
-    <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+    <div className="mt-3 rounded-xl border border-warning/30 bg-warning/5 p-3">
       <div className="flex items-start gap-2">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
         <div className="text-xs leading-relaxed text-ink/70">
           Si rompés el plazo recuperás tus{" "}
           <span className="font-semibold">{formatMoney(d.principal)}</span>, pero{" "}
-          <span className="font-semibold text-amber-300">
+          <span className="font-semibold text-warning">
             perdés los {formatMoney(d.interest)} de interés
           </span>
           . Eso es lo que cuesta la liquidez.

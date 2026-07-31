@@ -4,10 +4,10 @@ type Tone = "accent" | "violet" | "warning" | "danger" | "neutral" | "success";
 
 const tones: Record<Tone, string> = {
   accent: "bg-accent/15 text-accent border-accent/30",
-  success: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+  success: "bg-success/15 text-success border-success/30",
   violet: "bg-violet/15 text-violet border-violet/30",
-  warning: "bg-amber-500/15 text-amber-300 border-amber-500/30",
-  danger: "bg-red-500/15 text-red-300 border-red-500/30",
+  warning: "bg-warning/15 text-warning border-warning/30",
+  danger: "bg-danger/15 text-danger border-danger/30",
   neutral: "bg-raised2/60 text-ink/70 border-raised3",
 };
 

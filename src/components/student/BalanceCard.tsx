@@ -26,16 +26,18 @@ export function BalanceCard({
     }
   };
 
+  // La tarjeta es siempre oscura, así que fija el texto en blanco: si no,
+  // en tema claro hereda text-ink (casi negro) y el saldo se vuelve ilegible.
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-base-700/70 bg-gradient-to-br from-base-800 to-base-900 p-6 shadow-card">
+    <div className="relative overflow-hidden rounded-3xl border border-base-700/70 bg-gradient-to-br from-base-800 to-base-900 p-6 text-white shadow-card">
       <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-accent/15 blur-2xl" />
       <div className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-violet/10 blur-2xl" />
 
       <div className="relative flex items-center justify-between">
-        <span className="text-sm text-white/50">Saldo disponible</span>
+        <span className="text-sm text-white/70">Saldo disponible</span>
         <button
           onClick={() => setHidden((h) => !h)}
-          className="rounded-lg p-1.5 text-white/40 transition-colors hover:bg-base-700 hover:text-white"
+          className="rounded-lg p-1.5 text-white/60 transition-colors hover:bg-base-700 hover:text-white"
           aria-label={hidden ? "Mostrar saldo" : "Ocultar saldo"}
         >
           {hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -51,13 +53,13 @@ export function BalanceCard({
           onClick={() => copy(alias, "alias")}
           className="flex items-center justify-between rounded-xl bg-base-950/40 px-3 py-2 text-left transition-colors hover:bg-base-950/70"
         >
-          <span className="text-white/40">Alias</span>
-          <span className="flex items-center gap-2 font-medium text-white/90">
+          <span className="text-white/70">Alias</span>
+          <span className="flex items-center gap-2 font-medium text-white">
             {alias}
             {copied === "alias" ? (
               <Check className="h-3.5 w-3.5 text-accent" />
             ) : (
-              <Copy className="h-3.5 w-3.5 text-white/40" />
+              <Copy className="h-3.5 w-3.5 text-white/60" />
             )}
           </span>
         </button>
@@ -65,13 +67,13 @@ export function BalanceCard({
           onClick={() => copy(cvu, "cvu")}
           className="flex items-center justify-between rounded-xl bg-base-950/40 px-3 py-2 text-left transition-colors hover:bg-base-950/70"
         >
-          <span className="text-white/40">CVU</span>
-          <span className="flex items-center gap-2 font-mono text-xs text-white/90">
+          <span className="text-white/70">CVU</span>
+          <span className="flex items-center gap-2 font-mono text-xs text-white">
             {cvu}
             {copied === "cvu" ? (
               <Check className="h-3.5 w-3.5 text-accent" />
             ) : (
-              <Copy className="h-3.5 w-3.5 text-white/40" />
+              <Copy className="h-3.5 w-3.5 text-white/60" />
             )}
           </span>
         </button>

@@ -23,10 +23,16 @@ export type RequestView = {
   payerName: string | null;
 };
 
-function SubmitBtn({ label }: { label: string }) {
+function SubmitBtn({
+  label,
+  variant,
+}: {
+  label: string;
+  variant?: "primary" | "danger";
+}) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="sm" disabled={pending}>
+    <Button type="submit" size="sm" variant={variant} disabled={pending}>
       {pending ? "..." : label}
     </Button>
   );
@@ -130,7 +136,7 @@ function CreateRequest() {
           />
         </div>
         {state && (
-          <p className={state.ok ? "text-sm text-accent" : "text-sm text-red-300"}>
+          <p className={state.ok ? "text-sm text-accent" : "text-sm text-danger"}>
             {state.ok ? state.message : state.error}
           </p>
         )}
@@ -201,7 +207,7 @@ function RequestCard({
               )}
               {copied ? "Copiado" : "Copiar link"}
             </Button>
-            <CancelRequest requestId={r.id} />
+            <CancelRequest r={r} />
           </div>
           {showQr && (
             <div className="mt-3 flex justify-center">
@@ -214,24 +220,54 @@ function RequestCard({
   );
 }
 
-function CancelRequest({ requestId }: { requestId: string }) {
+/** Cancelar no tiene vuelta atrás: hay que confirmarlo. */
+function CancelRequest({ r }: { r: RequestView }) {
   const [state, formAction] = useActionState<ActionResult | null, FormData>(
     cancelPaymentRequest,
     null,
   );
-  useEffect(() => {
-    void state;
-  }, [state]);
+  const [confirming, setConfirming] = useState(false);
+
   return (
-    <form action={formAction} className="ml-auto">
-      <input type="hidden" name="requestId" value={requestId} />
+    <>
       <button
-        type="submit"
+        type="button"
         title="Cancelar pedido"
-        className="grid h-8 w-8 place-items-center rounded-lg text-ink/40 hover:bg-red-500/15 hover:text-red-300"
+        aria-label="Cancelar pedido"
+        aria-expanded={confirming}
+        onClick={() => setConfirming((c) => !c)}
+        className={`ml-auto grid h-8 w-8 place-items-center rounded-lg transition-colors hover:bg-danger/15 hover:text-danger ${
+          confirming ? "bg-danger/15 text-danger" : "text-ink/40"
+        }`}
       >
         <X className="h-4 w-4" />
       </button>
-    </form>
+
+      {confirming && (
+        <div className="w-full rounded-xl border border-danger/30 bg-danger/5 p-3">
+          <p className="text-xs leading-relaxed text-ink/70">
+            ¿Cancelás el pedido de{" "}
+            <span className="font-semibold">{formatMoney(r.amount)}</span>? El
+            link y el QR dejan de funcionar, y no se puede reactivar.
+          </p>
+          <div className="mt-3 flex items-center gap-2">
+            <form action={formAction}>
+              <input type="hidden" name="requestId" value={r.id} />
+              <SubmitBtn label="Sí, cancelar" variant="danger" />
+            </form>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              className="text-xs text-ink/50 hover:text-ink"
+            >
+              Mejor no
+            </button>
+          </div>
+          {state && !state.ok && (
+            <p className="mt-2 text-xs text-danger">{state.error}</p>
+          )}
+        </div>
+      )}
+    </>
   );
 }

@@ -151,12 +151,12 @@ export default async function YieldsPage() {
         <Card
           className={
             real < 0
-              ? "border-amber-500/30 bg-amber-500/5"
+              ? "border-warning/30 bg-warning/5"
               : "border-accent/25 bg-accent/5"
           }
         >
           <div className="mb-1 flex items-center gap-2">
-            <Flame className="h-4 w-4 text-amber-300" />
+            <Flame className="h-4 w-4 text-warning" />
             <CardTitle className="text-ink/80">
               Tasa real: {real}% anual
             </CardTitle>
@@ -168,7 +168,7 @@ export default async function YieldsPage() {
             {real < 0 ? (
               <>
                 Como los precios corren más rápido que tu plata, tenés{" "}
-                <span className="font-semibold text-amber-300">
+                <span className="font-semibold text-warning">
                   más pesos pero comprás menos cosas
                 </span>
                 . Ahí conviene buscar un plazo con mejor tasa.
