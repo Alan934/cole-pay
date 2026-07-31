@@ -1,5 +1,5 @@
 import { TrendingUp, Coins, Users, Flame } from "lucide-react";
-import { requireAdmin } from "@/lib/session";
+import { requireAdminSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getSettingsView } from "@/lib/settings";
 import { formatMoney } from "@/lib/utils";
@@ -8,7 +8,7 @@ import { Card, CardTitle } from "@/components/ui/Card";
 import { YieldsManager } from "./YieldsManager";
 
 export default async function AdminYieldsPage() {
-  await requireAdmin();
+  await requireAdminSession();
 
   const [settings, terms, runs, interestAgg, topEarners] = await Promise.all([
     getSettingsView(),

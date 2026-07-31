@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireStudent } from "@/lib/session";
+import { requireAdminSession, requireStudent } from "@/lib/session";
 import { SETTINGS_ID, getSettings } from "@/lib/settings";
 import { accrueInterest } from "@/lib/accrual";
 import { applyInflation } from "@/lib/inflation";
@@ -42,7 +42,7 @@ export async function updateBankSettings(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  await requireAdminSession();
   const parsed = bankSettingsSchema.safeParse({
     interestEnabled: formData.get("interestEnabled"),
     balanceTnaPct: formData.get("balanceTnaPct"),
@@ -79,7 +79,7 @@ export async function updateInflationSettings(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  await requireAdminSession();
   const parsed = inflationSchema.safeParse({
     inflationEnabled: formData.get("inflationEnabled"),
     monthlyInflationPct: formData.get("monthlyInflationPct"),
@@ -106,7 +106,7 @@ export async function saveDepositTerm(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  await requireAdminSession();
   const parsed = depositTermSchema.safeParse({
     days: formData.get("days"),
     tnaPct: formData.get("tnaPct"),
@@ -136,7 +136,7 @@ export async function toggleDepositTerm(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  await requireAdminSession();
   const id = String(formData.get("termId") || "");
   const term = await prisma.depositTerm.findUnique({ where: { id } });
   if (!term) return { ok: false, error: "Plazo no encontrado." };
@@ -166,7 +166,7 @@ export async function forceAccrual(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  await requireAdminSession();
   const parsed = forceAccrualSchema.safeParse({ days: formData.get("days") });
   if (!parsed.success)
     return { ok: false, error: parsed.error.issues[0].message };
@@ -197,7 +197,7 @@ export async function forceInflation(
   _prev: ActionResult | null,
   _formData: FormData,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  await requireAdminSession();
   const result = await applyInflation({ trigger: "MANUAL" });
 
   revalidateEverything();

@@ -1,5 +1,5 @@
 import { Receipt, CheckCircle2, Clock } from "lucide-react";
-import { requireAdmin } from "@/lib/session";
+import { requireAdminSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatMoney } from "@/lib/utils";
 import { Card, CardTitle } from "@/components/ui/Card";
@@ -7,7 +7,7 @@ import { CreateInvoiceForm } from "./CreateInvoiceForm";
 import { InvoicesTable } from "./InvoicesTable";
 
 export default async function ServicesPage() {
-  await requireAdmin();
+  await requireAdminSession();
 
   const [students, groups, invoices, paidAgg, pendingAgg] = await Promise.all([
     prisma.user.findMany({

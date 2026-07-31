@@ -64,10 +64,22 @@ const config: Config = {
           "70%": { transform: "scale(1.05)" },
           "100%": { opacity: "1", transform: "scale(1)" },
         },
+        // Placeholders de carga: latido suave en vez de un gris muerto.
+        shimmer: {
+          "0%, 100%": { opacity: "0.45" },
+          "50%": { opacity: "0.9" },
+        },
+        // Barra de progreso indeterminada de la navegación.
+        progress: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(350%)" },
+        },
       },
       animation: {
         "fade-in": "fade-in 0.35s ease-out",
         "pop-in": "pop-in 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
+        shimmer: "shimmer 1.4s ease-in-out infinite",
+        progress: "progress 1.1s ease-in-out infinite",
       },
     },
   },

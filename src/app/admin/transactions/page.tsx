@@ -1,6 +1,7 @@
 import { Search } from "lucide-react";
+import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
-import { requireAdmin } from "@/lib/session";
+import { requireAdminSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatMoney, formatDate } from "@/lib/utils";
 import { Card, CardTitle } from "@/components/ui/Card";
@@ -26,7 +27,7 @@ export default async function TransactionsPage({
 }: {
   searchParams: Promise<{ page?: string; q?: string }>;
 }) {
-  await requireAdmin();
+  await requireAdminSession();
   const { page: pageParam, q: qParam } = await searchParams;
   const q = (qParam ?? "").trim();
 
@@ -41,17 +42,27 @@ export default async function TransactionsPage({
       }
     : {};
 
-  const total = await prisma.transaction.count({ where });
+  // Contar y listar van en paralelo: dos consultas seguidas contra Neon son
+  // dos idas y vueltas de red, y se notan en la navegación.
+  const page = Math.max(1, Number(pageParam) || 1);
+  const [total, transactions] = await Promise.all([
+    prisma.transaction.count({ where }),
+    prisma.transaction.findMany({
+      where,
+      include: { sender: true, receiver: true },
+      orderBy: { timestamp: "desc" },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+    }),
+  ]);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const page = Math.min(Math.max(1, Number(pageParam) || 1), totalPages);
-
-  const transactions = await prisma.transaction.findMany({
-    where,
-    include: { sender: true, receiver: true },
-    orderBy: { timestamp: "desc" },
-    skip: (page - 1) * PAGE_SIZE,
-    take: PAGE_SIZE,
-  });
+  // Si el ?page= quedó fuera de rango (búsqueda que achicó el resultado),
+  // mandamos a la última página válida.
+  if (page > totalPages) {
+    const params = new URLSearchParams({ page: String(totalPages) });
+    if (q) params.set("q", q);
+    redirect(`/admin/transactions?${params}`);
+  }
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">

@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, ArrowLeftRight, Receipt, Bell, Settings } from "lucide-react";
+import { NavLink, NavIcon } from "@/components/NavProgress";
 import { cn } from "@/lib/utils";
 
 const items = [
@@ -21,7 +21,7 @@ export function BottomNav({ unread = 0 }: { unread?: number }) {
         {items.map(({ href, label, icon: Icon }) => {
           const active = pathname === href;
           return (
-            <Link
+            <NavLink
               key={href}
               href={href}
               className={cn(
@@ -30,7 +30,7 @@ export function BottomNav({ unread = 0 }: { unread?: number }) {
               )}
             >
               <span className="relative">
-                <Icon className="h-5 w-5" />
+                <NavIcon icon={Icon} className="h-5 w-5" />
                 {href === "/notifications" && unread > 0 && (
                   <span className="absolute -right-2 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[9px] font-bold text-onaccent">
                     {unread > 9 ? "9+" : unread}
@@ -38,7 +38,7 @@ export function BottomNav({ unread = 0 }: { unread?: number }) {
                 )}
               </span>
               {label}
-            </Link>
+            </NavLink>
           );
         })}
       </div>
