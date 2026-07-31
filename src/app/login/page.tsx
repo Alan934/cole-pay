@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { Logo } from "@/components/Logo";
+import { LogoWordmark } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LoginForm } from "./LoginForm";
 
@@ -26,7 +26,7 @@ export default async function LoginPage() {
       </div>
       <div className="w-full max-w-sm animate-fade-in">
         <div className="mb-8 flex flex-col items-center gap-4 text-center">
-          <Logo size="lg" />
+          <LogoWordmark />
           <p className="text-balance text-sm text-ink/50">
             Tu billetera educativa. Aprendé a manejar tu dinero en un entorno
             simulado y seguro.
