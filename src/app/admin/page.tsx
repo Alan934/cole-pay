@@ -87,7 +87,7 @@ export default async function AdminDashboard() {
           icon={Receipt}
           label="Por cobrar"
           value={formatMoney(pendingTotal)}
-          tone="text-amber-300"
+          tone="text-warning"
         />
       </div>
 

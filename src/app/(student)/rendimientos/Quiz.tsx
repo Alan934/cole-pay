@@ -24,7 +24,7 @@ export function Quiz({ solvedIds }: { solvedIds: string[] }) {
     <Card>
       <div className="mb-1 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Trophy className="h-5 w-5 text-amber-300" />
+          <Trophy className="h-5 w-5 text-warning" />
           <CardTitle className="text-ink/80">Desafío</CardTitle>
         </div>
         <Badge tone={allDone ? "success" : "neutral"}>
@@ -133,7 +133,7 @@ function QuestionCard({
           className={`rounded-xl border px-3 py-2 text-sm leading-relaxed ${
             state.ok
               ? "border-accent/30 bg-accent/10 text-accent"
-              : "border-amber-500/30 bg-amber-500/5 text-amber-300"
+              : "border-warning/30 bg-warning/5 text-warning"
           }`}
         >
           {state.ok ? state.message : state.error}

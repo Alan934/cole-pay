@@ -164,9 +164,9 @@ export default async function DashboardPage() {
       {/* Resumen de deudas */}
       {pendingBills > 0 && (
         <Link href="/bills">
-          <Card className="flex items-center justify-between border-amber-500/25 bg-amber-500/5">
+          <Card className="flex items-center justify-between border-warning/25 bg-warning/5">
             <div>
-              <CardTitle className="text-amber-300/80">
+              <CardTitle className="text-warning/80">
                 Tenés {pendingBills} cuenta(s) por pagar
               </CardTitle>
               <p className="mt-0.5 text-lg font-bold">

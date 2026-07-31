@@ -1,6 +1,7 @@
 import { requireAdminSession } from "@/lib/session";
 import { Logo } from "@/components/Logo";
 import { LogoutButton } from "@/components/LogoutButton";
+import { BackButton } from "@/components/BackButton";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { NavProgressProvider } from "@/components/NavProgress";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -20,7 +21,8 @@ export default async function AdminLayout({
         <header className="sticky top-0 z-30 border-b border-raised/60 bg-canvas/80 backdrop-blur">
           <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:px-6">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <BackButton home="/admin" />
                 <Logo size="sm" />
                 <Badge tone="violet">Admin</Badge>
               </div>

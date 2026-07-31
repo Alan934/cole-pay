@@ -7,8 +7,8 @@ import { MarkReadButton } from "./MarkReadButton";
 
 const iconMap: Record<string, { icon: typeof Bell; tone: string }> = {
   MONEY_RECEIVED: { icon: ArrowDownLeft, tone: "bg-accent/15 text-accent" },
-  NEW_INVOICE: { icon: Receipt, tone: "bg-amber-500/15 text-amber-300" },
-  INVOICE_PAID: { icon: Receipt, tone: "bg-emerald-500/15 text-emerald-300" },
+  NEW_INVOICE: { icon: Receipt, tone: "bg-warning/15 text-warning" },
+  INVOICE_PAID: { icon: Receipt, tone: "bg-success/15 text-success" },
   GENERIC: { icon: Sparkles, tone: "bg-violet/15 text-violet" },
 };
 

@@ -45,7 +45,7 @@ export function PayButton({ invoiceId }: { invoiceId: string }) {
         <Inner />
       </form>
       {flash && (
-        <span className="flex items-center gap-1 text-right text-xs text-red-300">
+        <span className="flex items-center gap-1 text-right text-xs text-danger">
           <AlertCircle className="h-3 w-3" /> {flash}
         </span>
       )}

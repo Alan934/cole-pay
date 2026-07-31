@@ -17,6 +17,11 @@
   --accent: 0 229 160;
   --accent-hover: 0 201 141;
 
+  /* Estados: tonos claros, pensados para leerse sobre fondo oscuro. */
+  --warning: 252 211 77;
+  --danger: 252 165 165;
+  --success: 110 231 183;
+
   --grad-a: rgba(0, 229, 160, 0.08);
   --grad-b: rgba(139, 92, 246, 0.08);
 }
@@ -33,6 +38,12 @@
   --onaccent: 10 11 15;
   --accent: 0 163 122;
   --accent-hover: 0 143 107;
+
+  /* Los mismos estados, oscurecidos: sobre fondo blanco los tonos claros
+     (amber-300, red-300…) quedaban ilegibles. */
+  --warning: 146 64 14;
+  --danger: 153 27 27;
+  --success: 6 95 70;
 
   --grad-a: rgba(0, 163, 122, 0.1);
   --grad-b: rgba(139, 92, 246, 0.1);

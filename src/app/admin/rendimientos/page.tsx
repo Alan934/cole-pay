@@ -86,7 +86,7 @@ export default async function AdminYieldsPage() {
               ? `${annualInflation}% anual`
               : "Desactivada"
           }
-          tone={settings.inflationEnabled ? "text-amber-300" : "text-ink/40"}
+          tone={settings.inflationEnabled ? "text-warning" : "text-ink/40"}
         />
       </div>
 
@@ -94,7 +94,7 @@ export default async function AdminYieldsPage() {
         <Card
           className={
             realRate(settings.balanceTnaPct, annualInflation) < 0
-              ? "border-amber-500/30 bg-amber-500/5"
+              ? "border-warning/30 bg-warning/5"
               : "border-accent/30 bg-accent/5"
           }
         >

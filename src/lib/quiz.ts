@@ -17,7 +17,39 @@ export type QuizQuestion = {
   explanation: string;
 };
 
-export const QUIZ_QUESTIONS: QuizQuestion[] = [
+/** Hash estable (FNV-1a) del id, para sembrar el mezclado. */
+function seedFrom(id: string) {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    h = Math.imul(h ^ id.charCodeAt(i), 16777619);
+  }
+  return h >>> 0;
+}
+
+/**
+ * Reordena las opciones para que la correcta no quede siempre primera.
+ *
+ * Los distractores se mezclan con Fisher-Yates sembrado por el id y después la
+ * correcta se coloca en una posición que va rotando pregunta a pregunta, así no
+ * se repite ni queda un patrón adivinable. Todo determinista a propósito: el
+ * servidor y el cliente tienen que renderizar el mismo orden o React rompe la
+ * hidratación. La corrección compara el texto de la respuesta, no la posición,
+ * así que reordenar es inocuo.
+ */
+function shuffleOptions(q: QuizQuestion, index: number): QuizQuestion {
+  const rest = q.options.filter((o) => o !== q.correct);
+  let s = seedFrom(q.id);
+  for (let i = rest.length - 1; i > 0; i--) {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    const j = s % (i + 1);
+    [rest[i], rest[j]] = [rest[j], rest[i]];
+  }
+  const options = [...rest];
+  options.splice((index * 3) % q.options.length, 0, q.correct);
+  return { ...q, options };
+}
+
+const RAW_QUESTIONS: QuizQuestion[] = [
   {
     id: "q1-que-es-tna",
     prompt: "¿Qué significa TNA?",
@@ -92,6 +124,11 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
       "así que perdés poder de compra aunque el número de la cuenta crezca.",
   },
 ];
+
+/** Las preguntas tal como las ve el alumno, con las opciones ya mezcladas. */
+export const QUIZ_QUESTIONS: QuizQuestion[] = RAW_QUESTIONS.map((q, i) =>
+  shuffleOptions(q, i),
+);
 
 export function findQuestion(id: string) {
   return QUIZ_QUESTIONS.find((q) => q.id === id);
