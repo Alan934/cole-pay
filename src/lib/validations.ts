@@ -41,11 +41,59 @@ export const goalMoveSchema = z.object({
 });
 
 // --- Plazo fijo ---
+// El plazo válido se valida contra los DepositTerm activos de la base,
+// porque el admin los define desde el panel.
 export const createDepositSchema = z.object({
   principal: z.coerce.number().positive("Monto inválido").max(9_999_999),
-  termDays: z.coerce.number().refine((v) => [7, 14, 30].includes(v), {
-    message: "Plazo inválido",
-  }),
+  termDays: z.coerce.number().int().positive("Plazo inválido").max(3650),
+});
+
+// --- Rendimientos (admin) ---
+const checkbox = z
+  .union([z.string(), z.boolean(), z.null(), z.undefined()])
+  .transform((v) => v === true || v === "on" || v === "true");
+
+const tna = z.coerce
+  .number({ invalid_type_error: "Tasa inválida" })
+  .min(0, "La tasa no puede ser negativa")
+  .max(9999, "Tasa demasiado alta");
+
+export const bankSettingsSchema = z.object({
+  interestEnabled: checkbox,
+  balanceTnaPct: tna,
+  goalsTnaPct: tna,
+  goalsLockDays: z.coerce.number().int().min(0).max(365),
+  minBalanceToEarn: z.coerce.number().min(0).max(9_999_999),
+});
+
+export const inflationSchema = z.object({
+  inflationEnabled: checkbox,
+  monthlyInflationPct: z.coerce
+    .number({ invalid_type_error: "Inflación inválida" })
+    .min(0, "No puede ser negativa")
+    .max(500, "Demasiado alta"),
+});
+
+export const depositTermSchema = z.object({
+  days: z.coerce
+    .number()
+    .int()
+    .min(1, "Mínimo 1 día")
+    .max(365, "Máximo 365 días"),
+  tnaPct: tna,
+});
+
+export const forceAccrualSchema = z.object({
+  days: z.coerce
+    .number()
+    .int()
+    .min(1, "Mínimo 1 día")
+    .max(366, "Máximo 366 días"),
+});
+
+export const quizAnswerSchema = z.object({
+  questionId: z.string().min(1),
+  answer: z.string().trim().min(1, "Elegí una respuesta").max(60),
 });
 
 // --- Pedidos de cobro ---

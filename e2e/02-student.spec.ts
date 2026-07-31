@@ -261,7 +261,8 @@ test.describe("Flujo del alumno", () => {
     await expect.poll(async () => balanceOf(USERS.sofia), { timeout: 15_000 }).toBe(4000);
     // Todavía no venció → no hay botón de cobro.
     await expect(page.getByRole("button", { name: "Cobrar" })).toHaveCount(0);
-    await expectMainContains(page, "$ 1.120,00"); // 1000 + 12%
+    // 100% TNA a 30 días → 1000 × 1 × 30/365 = 82,19 de interés.
+    await expectMainContains(page, "$ 1.082,19");
   });
 
   test("cobra el plazo fijo vencido con su interés", async ({ page }) => {
@@ -270,7 +271,8 @@ test.describe("Flujo del alumno", () => {
       data: {
         userId: sofia.id,
         principal: 1000,
-        ratePct: 12,
+        ratePct: 100, // TNA
+        termDays: 30,
         maturesAt: new Date(Date.now() - 86_400_000), // venció ayer
       },
     });
@@ -280,13 +282,39 @@ test.describe("Flujo del alumno", () => {
     await page.goto("/deposits");
     await page.getByRole("button", { name: "Cobrar" }).click();
 
-    await expect.poll(async () => balanceOf(USERS.sofia), { timeout: 15_000 }).toBe(5120);
+    await expect.poll(async () => balanceOf(USERS.sofia), { timeout: 15_000 }).toBe(5082.19);
     const dep = await db.fixedDeposit.findFirstOrThrow();
     expect(dep.status).toBe("WITHDRAWN");
-    expect(Number(dep.payoutAmount)).toBe(1120);
+    expect(Number(dep.payoutAmount)).toBe(1082.19);
     // El interés lo emite el banco → aparece como transacción INTEREST.
     const interes = await db.transaction.findFirst({ where: { type: "INTEREST" } });
-    expect(Number(interes?.amount)).toBe(120);
+    expect(Number(interes?.amount)).toBe(82.19);
+    // Y queda guardado el desglose del cálculo, para poder mostrárselo.
+    const accrual = await db.interestAccrual.findFirstOrThrow();
+    expect(accrual.days).toBe(30);
+    expect(Number(accrual.tnaPct)).toBe(100);
+  });
+
+  test("puede romper un plazo fijo antes de tiempo y pierde el interés", async ({
+    page,
+  }) => {
+    await loginStudent(page, USERS.sofia);
+    await page.goto("/deposits");
+    await page.getByLabel("Monto a invertir").fill("1000");
+    await page.getByLabel("Plazo").selectOption("30");
+    await page.getByRole("button", { name: "Crear plazo fijo" }).click();
+    await expect.poll(async () => balanceOf(USERS.sofia), { timeout: 15_000 }).toBe(4000);
+
+    await page.getByRole("button", { name: "Necesito la plata ahora" }).click();
+    await expectMainContains(page, "perdés los");
+    await page.getByRole("button", { name: "Romper igual" }).click();
+
+    // Recupera el capital, sin un peso de interés.
+    await expect.poll(async () => balanceOf(USERS.sofia), { timeout: 15_000 }).toBe(5000);
+    const dep = await db.fixedDeposit.findFirstOrThrow();
+    expect(dep.status).toBe("BROKEN");
+    expect(Number(dep.payoutAmount)).toBe(1000);
+    expect(await db.transaction.count({ where: { type: "INTEREST" } })).toBe(0);
   });
 
   /* ---------------------------- Pedidos de cobro -------------------------- */

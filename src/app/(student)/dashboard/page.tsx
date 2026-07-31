@@ -7,11 +7,15 @@ import {
   Target,
   Landmark,
   PieChart,
+  TrendingUp,
+  ChevronRight,
 } from "lucide-react";
 import { requireStudent } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { toTxView } from "@/lib/tx";
 import { formatMoney } from "@/lib/utils";
+import { getSettingsView } from "@/lib/settings";
+import { simpleInterest } from "@/lib/interest";
 import { BalanceCard } from "@/components/student/BalanceCard";
 import { TransactionRow } from "@/components/student/TransactionRow";
 import { SpendingSummary } from "@/components/student/SpendingSummary";
@@ -28,11 +32,18 @@ const QUICK_ACTIONS = [
 export default async function DashboardPage() {
   const me = await requireStudent();
 
-  const [transactions, pendingBills, pendingTotalAgg, spendingRaw, savedAgg] =
-    await Promise.all([
+  const [
+    transactions,
+    pendingBills,
+    pendingTotalAgg,
+    spendingRaw,
+    savedAgg,
+    settings,
+    earnedAgg,
+  ] = await Promise.all([
       prisma.transaction.findMany({
         where: { OR: [{ senderId: me.id }, { receiverId: me.id }] },
-        include: { sender: true, receiver: true },
+        include: { sender: true, receiver: true, accrual: true },
         orderBy: { timestamp: "desc" },
         take: 5,
       }),
@@ -54,11 +65,18 @@ export default async function DashboardPage() {
         where: { userId: me.id, status: { not: "ARCHIVED" } },
         _sum: { savedAmount: true },
       }),
+      getSettingsView(),
+      prisma.interestAccrual.aggregate({
+        where: { userId: me.id },
+        _sum: { interest: true },
+      }),
     ]);
 
   const balance = Number(me.wallet?.balance ?? 0);
   const pendingTotal = Number(pendingTotalAgg._sum.amount ?? 0);
   const saved = Number(savedAgg._sum.savedAmount ?? 0);
+  const earned = Number(earnedAgg._sum.interest ?? 0);
+  const perDay = simpleInterest(balance, settings.balanceTnaPct, 1);
   const txViews = transactions.map((t) => toTxView(t, me.id));
 
   const spending = spendingRaw
@@ -90,6 +108,41 @@ export default async function DashboardPage() {
           <span className="font-semibold text-accent">{formatMoney(saved)}</span>
         </div>
       )}
+
+      {/* Rendimientos: cuánto está generando la plata sin hacer nada */}
+      <Link href="/rendimientos">
+        {settings.interestEnabled ? (
+          <Card className="flex items-center justify-between gap-3 border-accent/25 bg-accent/5 transition-colors hover:border-accent/50">
+            <div className="min-w-0">
+              <CardTitle className="flex items-center gap-2 text-accent">
+                <TrendingUp className="h-4 w-4" /> Tu plata está generando
+              </CardTitle>
+              <p className="mt-0.5 text-lg font-bold">
+                {formatMoney(perDay)}{" "}
+                <span className="text-sm font-normal text-ink/50">por día</span>
+              </p>
+              <p className="text-xs text-ink/40">
+                {earned > 0
+                  ? `Llevás ganados ${formatMoney(earned)} · ${settings.balanceTnaPct}% TNA`
+                  : `${settings.balanceTnaPct}% TNA — tocá para entender cómo se calcula`}
+              </p>
+            </div>
+            <ChevronRight className="h-5 w-5 shrink-0 text-ink/30" />
+          </Card>
+        ) : (
+          <Card className="flex items-center justify-between gap-3 transition-colors hover:border-accent/40">
+            <div className="min-w-0">
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-accent" /> Rendimientos
+              </CardTitle>
+              <p className="mt-0.5 text-sm text-ink/50">
+                Qué es la TNA y cómo hacer que tu plata trabaje sola.
+              </p>
+            </div>
+            <ChevronRight className="h-5 w-5 shrink-0 text-ink/30" />
+          </Card>
+        )}
+      </Link>
 
       {/* Accesos rápidos */}
       <div className="grid grid-cols-4 gap-2">
