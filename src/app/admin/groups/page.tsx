@@ -1,11 +1,11 @@
-import { requireAdmin } from "@/lib/session";
+import { requireAdminSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { CreateGroupForm } from "./CreateGroupForm";
 import { GroupsList } from "./GroupsList";
 
 export default async function GroupsPage() {
-  await requireAdmin();
+  await requireAdminSession();
 
   const groups = await prisma.group.findMany({
     orderBy: { name: "asc" },

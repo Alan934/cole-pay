@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/session";
+import { requireAdmin, requireAdminSession } from "@/lib/session";
 import {
   issuanceSchema,
   depositSchema,
@@ -202,7 +202,7 @@ export async function createUser(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  await requireAdminSession();
   const parsed = createUserSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
@@ -246,7 +246,7 @@ export async function editUser(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  await requireAdminSession();
   const parsed = editUserSchema.safeParse({
     userId: formData.get("userId"),
     name: formData.get("name"),
@@ -285,7 +285,7 @@ export async function createGroup(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  await requireAdminSession();
   const parsed = groupSchema.safeParse({ name: formData.get("name") });
   if (!parsed.success)
     return { ok: false, error: parsed.error.issues[0].message };
@@ -306,7 +306,7 @@ export async function editInvoice(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  await requireAdminSession();
   const parsed = editInvoiceSchema.safeParse({
     invoiceId: formData.get("invoiceId"),
     description: formData.get("description"),
@@ -343,7 +343,7 @@ export async function cancelInvoice(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  await requireAdminSession();
   const invoiceId = String(formData.get("invoiceId") || "");
   if (!invoiceId) return { ok: false, error: "Cobro inválido." };
 
@@ -511,7 +511,7 @@ export async function toggleRecurring(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  await requireAdminSession();
   const id = String(formData.get("recurringId") || "");
   const rc = await prisma.recurringCharge.findUnique({ where: { id } });
   if (!rc) return { ok: false, error: "No encontrado." };

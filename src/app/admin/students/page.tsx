@@ -1,9 +1,9 @@
-import { requireAdmin } from "@/lib/session";
+import { requireAdminSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { StudentsManager } from "./StudentsManager";
 
 export default async function StudentsPage() {
-  await requireAdmin();
+  await requireAdminSession();
 
   const [students, groups] = await Promise.all([
     prisma.user.findMany({

@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { NavLink, NavIcon } from "@/components/NavProgress";
 import {
   LayoutDashboard,
   Users,
@@ -33,7 +33,7 @@ export function AdminNav() {
         const active =
           href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
         return (
-          <Link
+          <NavLink
             key={href}
             href={href}
             className={cn(
@@ -43,9 +43,9 @@ export function AdminNav() {
                 : "text-ink/60 hover:bg-raised hover:text-ink",
             )}
           >
-            <Icon className="h-4 w-4" />
+            <NavIcon icon={Icon} className="h-4 w-4" />
             {label}
-          </Link>
+          </NavLink>
         );
       })}
     </nav>

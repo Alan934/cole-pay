@@ -1,9 +1,9 @@
-import { requireAdmin } from "@/lib/session";
+import { requireAdminSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { RecurringManager } from "./RecurringManager";
 
 export default async function RecurringPage() {
-  await requireAdmin();
+  await requireAdminSession();
   const now = new Date();
 
   const [charges, groups] = await Promise.all([

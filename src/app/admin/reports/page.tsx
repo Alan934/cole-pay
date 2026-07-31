@@ -6,14 +6,14 @@ import {
   Sparkles,
   TrendingUp,
 } from "lucide-react";
-import { requireAdmin } from "@/lib/session";
+import { requireAdminSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatMoney } from "@/lib/utils";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 
 export default async function ReportsPage() {
-  await requireAdmin();
+  await requireAdminSession();
 
   const [students, issuedAgg, savedAgg, groups, interestAgg] = await Promise.all([
     prisma.user.findMany({
