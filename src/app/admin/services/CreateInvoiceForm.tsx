@@ -1,16 +1,21 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { Receipt } from "lucide-react";
+import { Receipt, Search } from "lucide-react";
 import { createInvoices } from "@/app/actions/admin";
 import type { ActionResult } from "@/app/actions/student";
-import { Input, Label, Select } from "@/components/ui/Input";
+import { Input, Label } from "@/components/ui/Input";
+import { SearchSelect } from "@/components/ui/SearchSelect";
 import { Button } from "@/components/ui/Button";
 import { FormFeedback } from "@/components/admin/FormFeedback";
+import { useFuzzyList } from "@/lib/fuzzy";
 
 type StudentOpt = { id: string; name: string; group: string | null };
 type GroupOpt = { id: string; name: string };
+
+/** Constante a nivel módulo: fuse.js reindexa si cambia la referencia. */
+const STUDENT_KEYS = ["name", "group"];
 
 function Submit() {
   const { pending } = useFormStatus();
@@ -30,14 +35,32 @@ export function CreateInvoiceForm({
   groups: GroupOpt[];
 }) {
   const [mode, setMode] = useState<"group" | "students">("group");
+  const [studentQuery, setStudentQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [state, formAction] = useActionState<ActionResult | null, FormData>(
     createInvoices,
     null,
   );
   const ref = useRef<HTMLFormElement>(null);
   useEffect(() => {
-    if (state?.ok) ref.current?.reset();
+    if (state?.ok) {
+      ref.current?.reset();
+      setSelectedIds([]);
+      setStudentQuery("");
+    }
   }, [state]);
+
+  const groupOptions = useMemo(
+    () => groups.map((g) => ({ value: g.id, label: g.name })),
+    [groups],
+  );
+  const filteredStudents = useFuzzyList(students, STUDENT_KEYS, studentQuery);
+
+  function toggleStudent(id: string) {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
 
   return (
     <form ref={ref} action={formAction} className="flex flex-col gap-4">
@@ -94,43 +117,79 @@ export function CreateInvoiceForm({
         </div>
 
         {mode === "group" ? (
-          <Select name="groupId" defaultValue="" required>
-            <option value="" disabled>
-              Seleccioná un grupo…
-            </option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </Select>
+          <SearchSelect
+            name="groupId"
+            options={groupOptions}
+            required
+            placeholder="Seleccioná un grupo…"
+            searchPlaceholder="Buscar grupo…"
+            emptyMessage="No se encontró ningún grupo."
+          />
         ) : (
-          <div className="max-h-56 overflow-y-auto rounded-xl border border-raised2 bg-panel/60 p-2">
-            {students.length === 0 ? (
-              <p className="p-3 text-sm text-ink/40">No hay alumnos.</p>
-            ) : (
-              students.map((s) => (
-                <label
-                  key={s.id}
-                  className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-raised"
+          <div className="flex flex-col gap-2">
+            {/* Los seleccionados viajan por acá para no perderse al filtrar. */}
+            {selectedIds.map((id) => (
+              <input key={id} type="hidden" name="studentIds" value={id} />
+            ))}
+
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/40" />
+              <Input
+                value={studentQuery}
+                onChange={(e) => setStudentQuery(e.target.value)}
+                placeholder="Buscar alumno por nombre o grupo…"
+                className="pl-10"
+              />
+            </div>
+
+            <div className="max-h-56 overflow-y-auto rounded-xl border border-raised2 bg-panel/60 p-2">
+              {students.length === 0 ? (
+                <p className="p-3 text-sm text-ink/40">No hay alumnos.</p>
+              ) : filteredStudents.length === 0 ? (
+                <p className="p-3 text-sm text-ink/40">
+                  No se encontró ningún alumno.
+                </p>
+              ) : (
+                filteredStudents.map((s) => (
+                  <label
+                    key={s.id}
+                    className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-raised"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(s.id)}
+                      onChange={() => toggleStudent(s.id)}
+                      className="h-4 w-4 accent-[#00e5a0]"
+                    />
+                    <span className="text-sm">
+                      {s.name}
+                      {s.group && (
+                        <span className="ml-2 text-xs text-ink/40">
+                          {s.group}
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+
+            <div className="flex items-center justify-between px-1 text-xs text-ink/40">
+              <span>
+                {selectedIds.length === 0
+                  ? "Ningún alumno seleccionado"
+                  : `${selectedIds.length} alumno${selectedIds.length === 1 ? "" : "s"} seleccionado${selectedIds.length === 1 ? "" : "s"}`}
+              </span>
+              {selectedIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds([])}
+                  className="rounded-lg px-2 py-1 text-ink/50 hover:bg-raised2 hover:text-ink"
                 >
-                  <input
-                    type="checkbox"
-                    name="studentIds"
-                    value={s.id}
-                    className="h-4 w-4 accent-[#00e5a0]"
-                  />
-                  <span className="text-sm">
-                    {s.name}
-                    {s.group && (
-                      <span className="ml-2 text-xs text-ink/40">
-                        {s.group}
-                      </span>
-                    )}
-                  </span>
-                </label>
-              ))
-            )}
+                  Limpiar selección
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
