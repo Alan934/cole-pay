@@ -17,6 +17,7 @@ import {
   recurringSchema,
 } from "@/lib/validations";
 import { generateAlias, generateCvu } from "@/lib/utils";
+import { runRecurring } from "@/lib/recurring";
 import type { ActionResult } from "@/app/actions/student";
 
 const D = (v: number | string) => new Prisma.Decimal(v);
@@ -523,57 +524,31 @@ export async function toggleRecurring(
   return { ok: true, message: rc.active ? "Pausado." : "Reactivado." };
 }
 
-/** Genera los cobros recurrentes vencidos (crea Invoices y adelanta nextRunAt). */
+/**
+ * Genera los cobros recurrentes vencidos.
+ *
+ * Normalmente esto lo hace solo el cron diario (`/api/cron/accrual`); este
+ * botón queda para adelantarlo en clase, igual que "Liquidar ahora" en
+ * rendimientos. Comparte la misma lógica, así que tampoco duplica ni acumula.
+ */
 export async function runRecurringNow(
   _prev: ActionResult | null,
   _formData: FormData,
 ): Promise<ActionResult> {
-  const admin = await requireAdmin();
-  const now = new Date();
+  await requireAdminSession();
 
-  const due = await prisma.recurringCharge.findMany({
-    where: { active: true, nextRunAt: { lte: now }, groupId: { not: null } },
-  });
-  if (due.length === 0)
-    return { ok: false, error: "No hay cobros recurrentes para generar." };
-
-  let created = 0;
-  for (const rc of due) {
-    const students = await prisma.user.findMany({
-      where: { groupId: rc.groupId!, role: "STUDENT" },
-      select: { id: true },
-    });
-    await prisma.$transaction(async (tx) => {
-      for (const s of students) {
-        await tx.invoice.create({
-          data: {
-            description: rc.description,
-            amount: rc.amount,
-            studentId: s.id,
-            createdById: admin.id,
-            status: "PENDING",
-          },
-        });
-        await tx.notification.create({
-          data: {
-            userId: s.id,
-            type: "NEW_INVOICE",
-            title: "Nueva cuenta por pagar",
-            body: `${rc.description} — ${rc.amount.toString()}`,
-          },
-        });
-        created++;
-      }
-      const next = new Date();
-      next.setDate(next.getDate() + rc.intervalDays);
-      await tx.recurringCharge.update({
-        where: { id: rc.id },
-        data: { lastRunAt: now, nextRunAt: next },
-      });
-    });
-  }
+  const result = await runRecurring({ trigger: "MANUAL" });
+  if (!result.ok) return { ok: false, error: result.reason };
 
   revalidatePath("/admin/recurring");
   revalidatePath("/admin/services");
-  return { ok: true, message: `Se generaron ${created} cobro(s).` };
+
+  const skipped =
+    result.periodsSkipped > 0
+      ? ` Se saltearon ${result.periodsSkipped} período(s) atrasado(s).`
+      : "";
+  return {
+    ok: true,
+    message: `Se generaron ${result.invoicesCreated} cobro(s).${skipped}`,
+  };
 }

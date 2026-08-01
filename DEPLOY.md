@@ -38,10 +38,16 @@ Vercel es serverless y abre muchas conexiones. Usá la cadena de conexión
 **"Pooled"** de Neon (la que tiene `-pooler` en el host), que es justo la que ya
 tenés en tu `.env`. ✅
 
-## 4. Rendimientos: el cron diario
+## 4. El cron diario
 
-Los intereses **no** se acreditan solos en tu compu: los acredita Vercel una vez
-por día. La configuración ya está en `vercel.json`:
+Una sola corrida diaria hace tres cosas, en este orden:
+
+1. **Acredita los intereses** del período (saldos y metas).
+2. **Ajusta los precios** por inflación, si está activada.
+3. **Emite los cobros recurrentes vencidos** (alquileres, servicios).
+
+Nada de esto pasa solo en tu compu: lo dispara Vercel. La configuración ya está
+en `vercel.json`:
 
 ```json
 { "crons": [{ "path": "/api/cron/accrual", "schedule": "0 3 * * *" }] }
@@ -54,8 +60,23 @@ por día. La configuración ya está en `vercel.json`:
 - En el plan Hobby de Vercel los crons corren **una vez por día** y el horario
   puede correrse un rato. No pasa nada: la liquidación calcula los días reales
   transcurridos y no paga dos veces el mismo período.
+- Los cobros recurrentes **no se acumulan**. Si estuviste 3 semanas sin usar la
+  app, el alquiler semanal emite **una sola** factura y retoma la grilla, no
+  tres de golpe.
 - Para verlo funcionar: Vercel → tu proyecto → **Cron Jobs**.
-- Si un día no corrió, entrá a **/admin/rendimientos** y usá "Liquidar ahora".
+- Si un día no corrió: **/admin/rendimientos** → "Liquidar ahora", y
+  **/admin/recurring** → "Generar vencidos".
+
+### Si el "Run" del cron devuelve 500
+
+El endpoint devuelve el motivo en el cuerpo de la respuesta. Abrí el log en
+Vercel → **Logs** y mirá el JSON. Los dos casos típicos:
+
+- `"CRON_SECRET no está configurado"` → falta la variable **en ese entorno**.
+  Ojo: si la cargaste solo en Production y estás probando un deploy de Preview,
+  no existe ahí. Cargala también en Preview o probá sobre el dominio productivo.
+- Un `401` (no un 500) significa que la variable **sí** está y el header no
+  coincide: redeployá para que el cron tome el valor nuevo.
 
 > 💡 Mientras trabajás en `localhost` el cron no existe. Para probar en clase,
 > usá el botón "Liquidar ahora" del panel de admin.
