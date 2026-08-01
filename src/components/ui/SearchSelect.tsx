@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFuzzyList } from "@/lib/fuzzy";
@@ -13,6 +20,12 @@ export type SearchOption = {
 };
 
 const SEARCH_KEYS = ["label", "hint"];
+
+/** Alto máximo del desplegable y margen mínimo contra el borde de la ventana. */
+const MAX_LIST_HEIGHT = 288;
+const VIEWPORT_MARGIN = 16;
+/** Padding vertical del `ul` (`p-1` arriba + abajo). */
+const LIST_PADDING = 8;
 
 type Props = {
   /** Nombre del campo en el FormData del server action. */
@@ -56,6 +69,8 @@ export function SearchSelect({
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [maxHeight, setMaxHeight] = useState(MAX_LIST_HEIGHT);
+  const [dropUp, setDropUp] = useState(false);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -85,6 +100,66 @@ export function SearchSelect({
   useEffect(() => {
     setActiveIndex(0);
   }, [query, open]);
+
+  /*
+   * Cerrar por clic afuera, no por `blur`: al agarrar la barra de scroll de la
+   * lista el input pierde el foco (relatedTarget nulo) y el desplegable se
+   * cerraba justo cuando ibas a deslizarlo.
+   */
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) close();
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [open]);
+
+  /*
+   * Acomoda el desplegable al espacio real que queda en la ventana: si abajo
+   * no entra, se abre hacia arriba, y el alto se recorta en filas enteras
+   * para que nunca quede media opción asomando contra el borde.
+   */
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    const measure = () => {
+      const anchor = inputRef.current;
+      const list = listRef.current;
+      if (!anchor || !list) return;
+
+      const rect = anchor.getBoundingClientRect();
+      const below = window.innerHeight - rect.bottom - VIEWPORT_MARGIN;
+      const above = rect.top - VIEWPORT_MARGIN;
+      const up = below < 200 && above > below;
+      const space = Math.min(MAX_LIST_HEIGHT, Math.max(96, up ? above : below));
+
+      // `maxHeight` incluye el borde (box-sizing: border-box); el padding va
+      // dentro de clientHeight. Hay que descontar los dos para contar filas.
+      const border = list.offsetHeight - list.clientHeight;
+      const chrome = border + LIST_PADDING;
+      const row = list.firstElementChild?.getBoundingClientRect().height ?? 0;
+      const rows = row > 0 ? Math.floor((space - chrome) / row) : 0;
+      const next =
+        rows > 0 ? Math.ceil(rows * row + chrome) : Math.floor(space);
+
+      setDropUp(up);
+      setMaxHeight((prev) => (Math.abs(prev - next) > 1 ? next : prev));
+    };
+
+    measure();
+    window.addEventListener("resize", measure);
+    // `true`: también al scrollear cualquier contenedor que lo contenga.
+    window.addEventListener("scroll", measure, true);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
+    };
+  }, [open, results.length]);
 
   // Mantener visible la opción resaltada al navegar con el teclado.
   useEffect(() => {
@@ -135,7 +210,11 @@ export function SearchSelect({
       ref={rootRef}
       className={cn("relative", className)}
       onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) close();
+        // Solo si el foco se fue a otro control (Tab). Sin `relatedTarget` el
+        // clic fue en algo no focusable —p. ej. la barra de scroll— y de eso
+        // se encarga el listener de clic afuera.
+        const next = e.relatedTarget as Node | null;
+        if (next && !e.currentTarget.contains(next)) close();
       }}
     >
       <div className="relative">
@@ -206,7 +285,11 @@ export function SearchSelect({
           ref={listRef}
           id={listId}
           role="listbox"
-          className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-raised2 bg-panel p-1 shadow-xl shadow-black/20"
+          style={{ maxHeight }}
+          className={cn(
+            "scroll-list absolute z-50 w-full rounded-xl border border-raised2 bg-panel p-1 shadow-xl shadow-black/20",
+            dropUp ? "bottom-full mb-1" : "top-full mt-1",
+          )}
         >
           {results.length === 0 ? (
             <li className="px-3 py-3 text-sm text-ink/40">{emptyMessage}</li>
