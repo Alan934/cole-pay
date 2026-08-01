@@ -80,6 +80,34 @@ body {
   background: transparent;
 }
 
+@layer components {
+  /**
+   * Lista desplazable con barra visible (desplegables de búsqueda, listas de
+   * selección). La barra global es casi invisible sobre el panel oscuro, así
+   * que acá se usa un tono más claro. `overscroll-behavior` evita que al
+   * llegar al final se empiece a scrollear la página de atrás.
+   */
+  .scroll-list {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--raised3)) transparent;
+  }
+  .scroll-list::-webkit-scrollbar {
+    width: 8px;
+  }
+  .scroll-list::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scroll-list::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--raised3));
+    border-radius: 9999px;
+  }
+  .scroll-list::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--ink) / 0.4);
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

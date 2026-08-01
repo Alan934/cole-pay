@@ -224,6 +224,14 @@ function EditStudentDialog({
     }
   }, [state, onClose]);
 
+  const groupOptions = useMemo(
+    () => [
+      { value: "__none__", label: "Sin grupo" },
+      ...groups.map((g) => ({ value: g.id, label: g.name })),
+    ],
+    [groups],
+  );
+
   return (
     <div
       className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
@@ -254,18 +262,14 @@ function EditStudentDialog({
           </div>
           <div>
             <Label htmlFor="e-group">Grupo</Label>
-            <Select
+            <SearchSelect
               id="e-group"
               name="groupId"
+              options={groupOptions}
               defaultValue={student.groupId ?? "__none__"}
-            >
-              <option value="__none__">Sin grupo</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </Select>
+              searchPlaceholder="Buscar grupo…"
+              emptyMessage="No se encontró ningún grupo."
+            />
           </div>
           <div>
             <Label htmlFor="e-pass">Nueva contraseña (opcional)</Label>

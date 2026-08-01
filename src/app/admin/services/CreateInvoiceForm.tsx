@@ -142,7 +142,7 @@ export function CreateInvoiceForm({
               />
             </div>
 
-            <div className="max-h-56 overflow-y-auto rounded-xl border border-raised2 bg-panel/60 p-2">
+            <div className="scroll-list max-h-56 rounded-xl border border-raised2 bg-panel/60 p-2">
               {students.length === 0 ? (
                 <p className="p-3 text-sm text-ink/40">No hay alumnos.</p>
               ) : filteredStudents.length === 0 ? (
