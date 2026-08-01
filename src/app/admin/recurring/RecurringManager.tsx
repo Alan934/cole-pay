@@ -10,13 +10,18 @@ import {
 } from "@/app/actions/admin";
 import type { ActionResult } from "@/app/actions/student";
 import { Card, CardTitle } from "@/components/ui/Card";
-import { Input, Label, Select } from "@/components/ui/Input";
+import { Input, Label } from "@/components/ui/Input";
+import { SearchSelect } from "@/components/ui/SearchSelect";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { FormFeedback } from "@/components/admin/FormFeedback";
+import { useFuzzyList } from "@/lib/fuzzy";
 import { formatMoney, formatDate } from "@/lib/utils";
 
 type GroupOpt = { id: string; name: string };
+
+/** Constante a nivel módulo: fuse.js reindexa si cambia la referencia. */
+const CHARGE_KEYS = ["description", "groupName"];
 export type RecurringView = {
   id: string;
   description: string;
@@ -48,13 +53,7 @@ export function RecurringManager({
   dueCount: number;
 }) {
   const [query, setQuery] = useState("");
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return charges;
-    return charges.filter((c) =>
-      `${c.description} ${c.groupName ?? ""}`.toLowerCase().includes(q),
-    );
-  }, [charges, query]);
+  const filtered = useFuzzyList(charges, CHARGE_KEYS, query);
 
   return (
     <div className="flex flex-col gap-5">
@@ -70,7 +69,7 @@ export function RecurringManager({
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Buscar…"
+                  placeholder="Buscar por concepto o grupo…"
                   className="h-10 pl-9 sm:w-56"
                 />
               </div>
@@ -102,6 +101,11 @@ function CreateForm({ groups }: { groups: GroupOpt[] }) {
   useEffect(() => {
     if (state?.ok) ref.current?.reset();
   }, [state]);
+
+  const groupOptions = useMemo(
+    () => groups.map((g) => ({ value: g.id, label: g.name })),
+    [groups],
+  );
 
   return (
     <Card>
@@ -155,16 +159,15 @@ function CreateForm({ groups }: { groups: GroupOpt[] }) {
         </div>
         <div>
           <Label htmlFor="rc-group">Grupo</Label>
-          <Select id="rc-group" name="groupId" defaultValue="" required>
-            <option value="" disabled>
-              Seleccioná un grupo…
-            </option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </Select>
+          <SearchSelect
+            id="rc-group"
+            name="groupId"
+            options={groupOptions}
+            required
+            placeholder="Seleccioná un grupo…"
+            searchPlaceholder="Buscar grupo…"
+            emptyMessage="No se encontró ningún grupo."
+          />
         </div>
         {state && (
           <FormFeedback ok={state.ok} msg={state.ok ? state.message : state.error} />

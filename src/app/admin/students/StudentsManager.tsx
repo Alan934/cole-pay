@@ -1,16 +1,18 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { UserPlus, Pencil, X, Search } from "lucide-react";
 import { createUser, editUser } from "@/app/actions/admin";
 import type { ActionResult } from "@/app/actions/student";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Input, Label, Select } from "@/components/ui/Input";
+import { SearchSelect } from "@/components/ui/SearchSelect";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { FormFeedback } from "@/components/admin/FormFeedback";
+import { useFuzzyList } from "@/lib/fuzzy";
 import { formatMoney } from "@/lib/utils";
 
 export type StudentRow = {
@@ -24,6 +26,9 @@ export type StudentRow = {
   groupName: string | null;
 };
 export type GroupOpt = { id: string; name: string };
+
+/** Constante a nivel módulo: fuse.js reindexa si cambia la referencia. */
+const STUDENT_KEYS = ["name", "email", "groupName"];
 
 function SubmitBtn({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -44,11 +49,7 @@ export function StudentsManager({
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<StudentRow | null>(null);
 
-  const filtered = students.filter((s) =>
-    `${s.name} ${s.email} ${s.groupName ?? ""}`
-      .toLowerCase()
-      .includes(query.toLowerCase()),
-  );
+  const filtered = useFuzzyList(students, STUDENT_KEYS, query);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
@@ -143,6 +144,14 @@ function CreateStudentForm({ groups }: { groups: GroupOpt[] }) {
     if (state?.ok) ref.current?.reset();
   }, [state]);
 
+  const groupOptions = useMemo(
+    () => [
+      { value: "__none__", label: "Sin grupo" },
+      ...groups.map((g) => ({ value: g.id, label: g.name })),
+    ],
+    [groups],
+  );
+
   return (
     <Card className="h-fit">
       <div className="mb-3 flex items-center gap-2">
@@ -170,14 +179,14 @@ function CreateStudentForm({ groups }: { groups: GroupOpt[] }) {
         </div>
         <div>
           <Label htmlFor="c-group">Grupo</Label>
-          <Select id="c-group" name="groupId" defaultValue="__none__">
-            <option value="__none__">Sin grupo</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </Select>
+          <SearchSelect
+            id="c-group"
+            name="groupId"
+            options={groupOptions}
+            defaultValue="__none__"
+            searchPlaceholder="Buscar grupo…"
+            emptyMessage="No se encontró ningún grupo."
+          />
         </div>
         <div>
           <Label htmlFor="c-role">Rol</Label>

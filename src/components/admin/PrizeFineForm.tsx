@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Gift, Ban } from "lucide-react";
 import { prizeOrFine } from "@/app/actions/admin";
 import type { ActionResult } from "@/app/actions/student";
-import { Input, Label, Select } from "@/components/ui/Input";
+import { Input, Label } from "@/components/ui/Input";
+import { SearchSelect } from "@/components/ui/SearchSelect";
 import { Button } from "@/components/ui/Button";
 import { FormFeedback } from "./FormFeedback";
 
@@ -35,6 +36,11 @@ export function PrizeFineForm({ students }: { students: StudentOption[] }) {
   useEffect(() => {
     if (state?.ok) ref.current?.reset();
   }, [state]);
+
+  const options = useMemo(
+    () => students.map((s) => ({ value: s.id, label: s.name, hint: s.group })),
+    [students],
+  );
 
   return (
     <form ref={ref} action={formAction} className="flex flex-col gap-3">
@@ -66,17 +72,15 @@ export function PrizeFineForm({ students }: { students: StudentOption[] }) {
 
       <div>
         <Label htmlFor="pf-student">Alumno</Label>
-        <Select id="pf-student" name="studentId" required defaultValue="">
-          <option value="" disabled>
-            Seleccioná un alumno…
-          </option>
-          {students.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-              {s.group ? ` (${s.group})` : ""}
-            </option>
-          ))}
-        </Select>
+        <SearchSelect
+          id="pf-student"
+          name="studentId"
+          options={options}
+          required
+          placeholder="Seleccioná un alumno…"
+          searchPlaceholder="Buscar por nombre o grupo…"
+          emptyMessage="No se encontró ningún alumno."
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
