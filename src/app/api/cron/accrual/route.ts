@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { accrueInterest } from "@/lib/accrual";
 import { applyInflation } from "@/lib/inflation";
+import { runRecurring } from "@/lib/recurring";
 
 /**
- * Liquidación diaria automática.
+ * Corrida diaria automática.
  *
  * La dispara Vercel Cron una vez por día (ver `vercel.json`), mandando
- * `Authorization: Bearer $CRON_SECRET`. Acredita los intereses del día y,
- * si la inflación está activada, ajusta los precios.
+ * `Authorization: Bearer $CRON_SECRET`. Acredita los intereses del día,
+ * ajusta los precios si la inflación está activada, y emite los cobros
+ * recurrentes vencidos.
  *
- * Es seguro que se ejecute de más: tanto la liquidación como el ajuste de
- * precios reclaman el período antes de tocar dinero, así que un reintento
- * no paga ni cobra dos veces.
+ * El orden importa: primero se ajustan los precios y después se emiten los
+ * cobros, así el alquiler de hoy sale al precio de hoy.
+ *
+ * Es seguro que se ejecute de más: los tres pasos reclaman su período antes
+ * de tocar dinero, así que un reintento no paga ni cobra dos veces.
  */
 
 export const dynamic = "force-dynamic";
@@ -35,13 +39,23 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const interest = await accrueInterest({ trigger: "CRON" });
-  const inflation = await applyInflation({ trigger: "CRON" });
+  // Si algo explota, el 500 tiene que decir *qué* explotó: acá solo se llega
+  // con el secreto correcto, así que el detalle no queda expuesto a internet.
+  try {
+    const interest = await accrueInterest({ trigger: "CRON" });
+    const inflation = await applyInflation({ trigger: "CRON" });
+    const recurring = await runRecurring({ trigger: "CRON" });
 
-  return NextResponse.json({
-    ok: true,
-    ranAt: new Date().toISOString(),
-    interest,
-    inflation,
-  });
+    return NextResponse.json({
+      ok: true,
+      ranAt: new Date().toISOString(),
+      interest,
+      inflation,
+      recurring,
+    });
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    console.error("[cron/accrual] falló la corrida diaria:", e);
+    return NextResponse.json({ ok: false, error: detail }, { status: 500 });
+  }
 }

@@ -31,8 +31,8 @@ export default async function RecurringPage() {
       <div>
         <h1 className="text-2xl font-bold">Cobros recurrentes</h1>
         <p className="text-sm text-ink/50">
-          Programá cobros que se repiten (ej: alquiler semanal). Generalos con un
-          clic cuando venzan.
+          Programá cobros que se repiten (ej: alquiler semanal). Se emiten solos
+          una vez por día cuando vencen; el botón es para adelantarlos en clase.
         </p>
       </div>
       <RecurringManager
