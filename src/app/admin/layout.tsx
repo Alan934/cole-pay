@@ -6,6 +6,7 @@ import { AdminNav } from "@/components/admin/AdminNav";
 import { NavProgressProvider } from "@/components/NavProgress";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Badge } from "@/components/ui/Badge";
+import { IdleLogout } from "@/components/IdleLogout";
 
 export default async function AdminLayout({
   children,
@@ -17,6 +18,7 @@ export default async function AdminLayout({
 
   return (
     <NavProgressProvider>
+      <IdleLogout />
       <div className="min-h-dvh">
         <header className="sticky top-0 z-30 border-b border-raised/60 bg-canvas/80 backdrop-blur">
           <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:px-6">

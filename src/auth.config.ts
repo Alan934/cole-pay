@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
+import { SESSION_IDLE_MINUTES } from "@/lib/session-timeout";
 
 /**
  * Configuración base compatible con el runtime "edge" del middleware.
@@ -9,7 +10,7 @@ export const authConfig = {
   pages: {
     signIn: "/login",
   },
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: SESSION_IDLE_MINUTES * 60 },
   callbacks: {
     // Propaga role e id del usuario al token y a la sesión.
     async jwt({ token, user }) {

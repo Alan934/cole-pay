@@ -6,6 +6,7 @@ import { Logo } from "@/components/Logo";
 import { LogoutButton } from "@/components/LogoutButton";
 import { BackButton } from "@/components/BackButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { IdleLogout } from "@/components/IdleLogout";
 
 export default async function StudentLayout({
   children,
@@ -20,6 +21,7 @@ export default async function StudentLayout({
 
   return (
     <NavProgressProvider>
+      <IdleLogout />
       <div className="mx-auto flex min-h-dvh max-w-lg flex-col">
         <header className="sticky top-0 z-30 flex items-center justify-between border-b border-raised/60 bg-canvas/70 px-4 py-3 backdrop-blur">
           <div className="flex min-w-0 items-center gap-1">
