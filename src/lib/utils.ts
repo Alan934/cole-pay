@@ -31,6 +31,20 @@ export function formatDate(date: Date | string): string {
   }).format(d);
 }
 
+/** Día completo y horario, para el detalle de un movimiento. */
+export function formatDateLong(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return new Intl.DateTimeFormat("es-AR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(d);
+}
+
 /** Genera un CVU ficticio de 22 dígitos. */
 export function generateCvu(): string {
   let cvu = "";

@@ -207,6 +207,8 @@ export async function createUser(
   const parsed = createUserSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
+    dni: formData.get("dni") || undefined,
+    cuit: formData.get("cuit") || undefined,
     password: formData.get("password"),
     groupId: formData.get("groupId") || undefined,
     role: formData.get("role") || "STUDENT",
@@ -214,10 +216,21 @@ export async function createUser(
   if (!parsed.success)
     return { ok: false, error: parsed.error.issues[0].message };
 
-  const { name, email, password, groupId, role } = parsed.data;
+  const { name, email, dni, cuit, password, groupId, role } = parsed.data;
 
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) return { ok: false, error: "Ya existe un usuario con ese email." };
+
+  if (dni) {
+    const dniOwner = await prisma.user.findUnique({ where: { dni } });
+    if (dniOwner)
+      return { ok: false, error: "Ya existe un usuario con ese DNI." };
+  }
+  if (cuit) {
+    const cuitOwner = await prisma.user.findUnique({ where: { cuit } });
+    if (cuitOwner)
+      return { ok: false, error: "Ya existe un usuario con ese CUIT." };
+  }
 
   const passwordHash = await bcrypt.hash(password, 10);
 
@@ -225,6 +238,8 @@ export async function createUser(
     data: {
       name,
       email,
+      dni: dni ?? null,
+      cuit: cuit ?? null,
       passwordHash,
       role,
       groupId: groupId && groupId !== "__none__" ? groupId : null,
@@ -252,21 +267,37 @@ export async function editUser(
     userId: formData.get("userId"),
     name: formData.get("name"),
     email: formData.get("email"),
+    dni: formData.get("dni") || undefined,
+    cuit: formData.get("cuit") || undefined,
     groupId: formData.get("groupId") || undefined,
     password: formData.get("password") || undefined,
   });
   if (!parsed.success)
     return { ok: false, error: parsed.error.issues[0].message };
 
-  const { userId, name, email, groupId, password } = parsed.data;
+  const { userId, name, email, dni, cuit, groupId, password } = parsed.data;
 
   const emailOwner = await prisma.user.findUnique({ where: { email } });
   if (emailOwner && emailOwner.id !== userId)
     return { ok: false, error: "Ese email ya está en uso." };
 
+  if (dni) {
+    const dniOwner = await prisma.user.findUnique({ where: { dni } });
+    if (dniOwner && dniOwner.id !== userId)
+      return { ok: false, error: "Ese DNI ya está en uso." };
+  }
+  if (cuit) {
+    const cuitOwner = await prisma.user.findUnique({ where: { cuit } });
+    if (cuitOwner && cuitOwner.id !== userId)
+      return { ok: false, error: "Ese CUIT ya está en uso." };
+  }
+
   const data: Prisma.UserUpdateInput = {
     name,
     email,
+    // Campo vacío = se borra el dato cargado.
+    dni: dni ?? null,
+    cuit: cuit ?? null,
     group:
       groupId && groupId !== "__none__"
         ? { connect: { id: groupId } }

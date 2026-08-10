@@ -18,6 +18,8 @@ export default async function StudentsPage() {
     id: s.id,
     name: s.name,
     email: s.email,
+    dni: s.dni,
+    cuit: s.cuit,
     role: s.role,
     balance: Number(s.wallet?.balance ?? 0),
     alias: s.wallet?.alias ?? "—",

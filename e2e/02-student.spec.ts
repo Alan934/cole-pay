@@ -44,6 +44,53 @@ test.describe("Flujo del alumno", () => {
     expect(await totalMoney()).toBe(antes);
   });
 
+  test("el comprobante de una transferencia trae los datos de la otra parte", async ({
+    page,
+  }) => {
+    await loginStudent(page, USERS.sofia);
+    await page.goto("/transfer");
+    await page.getByLabel("CVU o Alias del destinatario").fill("mateo.test.dos");
+    await page.getByLabel("Monto").fill("1200");
+    await page.getByLabel("Categoría").selectOption("Comida");
+    await page.getByLabel("Mensaje (opcional)").fill("El almuerzo");
+    await page.getByRole("button", { name: "Enviar dinero" }).click();
+    await expectMainContains(page, "¡Transferencia exitosa!");
+
+    // Día completo tal como lo arma Intl en el servidor.
+    const hoy = new Intl.DateTimeFormat("es-AR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(new Date());
+
+    await page.goto("/activity");
+    const enviada = page.locator("details", { hasText: "El almuerzo" }).first();
+    await enviada.locator("summary").click();
+    // Mateo tiene CUIT cargado: se identifica con el CUIT.
+    await expect(enviada).toContainText("Enviaste a");
+    await expect(enviada).toContainText("Mateo Test");
+    await expect(enviada).toContainText("CUIT");
+    await expect(enviada).toContainText("20-40111002-6");
+    await expect(enviada).toContainText("mateo.test.dos");
+    await expect(enviada).toContainText("Transferencia");
+    await expect(enviada).toContainText("Comida");
+    await expect(enviada).toContainText(hoy);
+    await expect(enviada).toContainText(/\d{2}:\d{2}:\d{2}/); // horario
+
+    // Del otro lado, Sofía no tiene CUIT: se la identifica por DNI.
+    await page.context().clearCookies();
+    await loginStudent(page, USERS.mateo);
+    await page.goto("/activity");
+    const recibida = page.locator("details", { hasText: "El almuerzo" }).first();
+    await recibida.locator("summary").click();
+    await expect(recibida).toContainText("Recibiste de");
+    await expect(recibida).toContainText("Sofia Test");
+    await expect(recibida).toContainText("DNI");
+    await expect(recibida).toContainText("40.111.001");
+    await expect(recibida).not.toContainText("CUIT");
+  });
+
   test("transferencia por CVU también funciona", async ({ page }) => {
     await loginStudent(page, USERS.sofia);
     await page.goto("/transfer");

@@ -43,7 +43,11 @@ export default async function DashboardPage() {
   ] = await Promise.all([
       prisma.transaction.findMany({
         where: { OR: [{ senderId: me.id }, { receiverId: me.id }] },
-        include: { sender: true, receiver: true, accrual: true },
+        include: {
+          sender: { include: { wallet: true } },
+          receiver: { include: { wallet: true } },
+          accrual: true,
+        },
         orderBy: { timestamp: "desc" },
         take: 5,
       }),

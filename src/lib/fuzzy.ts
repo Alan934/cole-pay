@@ -55,6 +55,14 @@ export function useFuzzyList<T>(items: T[], keys: string[], query: string): T[] 
   return useMemo(() => {
     const q = deburr(query.trim());
     if (!q) return items;
+    // Con números en la búsqueda (códigos de grupo, DNI, montos) la tolerancia
+    // a typos hace más mal que bien: "3B2026" traía también "3A2026", que está
+    // a una sola letra. En ese caso buscamos la subcadena tal cual.
+    if (/\d/.test(q)) {
+      return items.filter((item) =>
+        keys.some((key) => getFn(item, key).includes(q)),
+      );
+    }
     return fuse.search(q).map((r) => r.item);
-  }, [fuse, items, query]);
+  }, [fuse, items, keys, query]);
 }

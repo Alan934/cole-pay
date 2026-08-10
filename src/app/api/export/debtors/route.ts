@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { formatCuit, formatDni } from "@/lib/identity";
 
 function csvEscape(value: string): string {
   if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
@@ -15,15 +16,34 @@ export async function GET() {
   const invoices = await prisma.invoice.findMany({
     where: { status: "PENDING" },
     include: {
-      student: { select: { name: true, email: true, group: { select: { name: true } } } },
+      student: {
+        select: {
+          name: true,
+          email: true,
+          dni: true,
+          cuit: true,
+          group: { select: { name: true } },
+        },
+      },
     },
     orderBy: [{ student: { name: "asc" } }, { createdAt: "asc" }],
   });
 
-  const header = ["Alumno", "Email", "Grupo", "Concepto", "Monto", "Vencimiento"];
+  const header = [
+    "Alumno",
+    "DNI",
+    "CUIT",
+    "Email",
+    "Grupo",
+    "Concepto",
+    "Monto",
+    "Vencimiento",
+  ];
   const rows = invoices.map((i) =>
     [
       i.student.name,
+      i.student.dni ? formatDni(i.student.dni) : "",
+      i.student.cuit ? formatCuit(i.student.cuit) : "",
       i.student.email,
       i.student.group?.name ?? "",
       i.description,

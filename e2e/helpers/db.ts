@@ -116,6 +116,8 @@ export async function seedDb() {
     balance: number;
     groupId?: string;
     seed: number;
+    dni?: string;
+    cuit?: string;
   }) =>
     db.user.create({
       data: {
@@ -123,6 +125,8 @@ export async function seedDb() {
         email: opts.email,
         passwordHash: opts.hash,
         role: opts.role,
+        dni: opts.dni ?? null,
+        cuit: opts.cuit ?? null,
         groupId: opts.groupId ?? null,
         wallet: {
           create: {
@@ -162,6 +166,8 @@ export async function seedDb() {
     balance: 5000,
     groupId: g3a.id,
     seed: 3,
+    // Sin CUIT: en los comprobantes se la identifica por DNI.
+    dni: "40111001",
   });
   const mateo = await mk({
     name: "Mateo Test",
@@ -172,6 +178,8 @@ export async function seedDb() {
     balance: 3000,
     groupId: g3a.id,
     seed: 4,
+    dni: "40111002",
+    cuit: "20401110026",
   });
   const valen = await mk({
     name: "Valentina Test",

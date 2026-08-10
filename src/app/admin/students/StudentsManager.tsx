@@ -13,12 +13,15 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { FormFeedback } from "@/components/admin/FormFeedback";
 import { useFuzzyList } from "@/lib/fuzzy";
+import { formatCuit, formatDni } from "@/lib/identity";
 import { formatMoney } from "@/lib/utils";
 
 export type StudentRow = {
   id: string;
   name: string;
   email: string;
+  dni: string | null;
+  cuit: string | null;
   role: string;
   balance: number;
   alias: string;
@@ -28,7 +31,7 @@ export type StudentRow = {
 export type GroupOpt = { id: string; name: string };
 
 /** Constante a nivel módulo: fuse.js reindexa si cambia la referencia. */
-const STUDENT_KEYS = ["name", "email", "groupName"];
+const STUDENT_KEYS = ["name", "email", "dni", "cuit", "groupName"];
 
 function SubmitBtn({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -61,7 +64,7 @@ export function StudentsManager({
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por nombre, email o grupo…"
+            placeholder="Buscar por nombre, email, DNI, CUIT o grupo…"
             className="pl-9"
           />
         </div>
@@ -72,6 +75,7 @@ export function StudentsManager({
               <thead className="border-b border-raised text-left text-xs text-ink/50">
                 <tr>
                   <th className="px-4 py-3 font-medium">Alumno</th>
+                  <th className="px-4 py-3 font-medium">DNI / CUIT</th>
                   <th className="px-4 py-3 font-medium">Grupo</th>
                   <th className="px-4 py-3 text-right font-medium">Saldo</th>
                   <th className="px-4 py-3"></th>
@@ -81,7 +85,7 @@ export function StudentsManager({
                 {filtered.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={4}
+                      colSpan={5}
                       className="px-4 py-8 text-center text-ink/40"
                     >
                       Sin resultados.
@@ -94,6 +98,22 @@ export function StudentsManager({
                         <p className="font-medium text-ink/90">{s.name}</p>
                         <p className="text-xs text-ink/40">{s.email}</p>
                         <p className="text-xs text-ink/30">{s.alias}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        {s.dni || s.cuit ? (
+                          <div className="font-mono text-xs">
+                            {s.dni && (
+                              <p className="text-ink/70">{formatDni(s.dni)}</p>
+                            )}
+                            {s.cuit && (
+                              <p className="text-ink/40">
+                                {formatCuit(s.cuit)}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-ink/30">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {s.groupName ? (
@@ -166,6 +186,27 @@ function CreateStudentForm({ groups }: { groups: GroupOpt[] }) {
         <div>
           <Label htmlFor="c-email">Email (login)</Label>
           <Input id="c-email" name="email" type="email" placeholder="alumno@colepay.edu" required />
+        </div>
+        <div>
+          <Label htmlFor="c-dni">DNI (opcional)</Label>
+          <Input
+            id="c-dni"
+            name="dni"
+            inputMode="numeric"
+            pattern="\d{7,9}"
+            maxLength={9}
+            placeholder="45123678"
+          />
+        </div>
+        <div>
+          <Label htmlFor="c-cuit">CUIT (opcional)</Label>
+          <Input
+            id="c-cuit"
+            name="cuit"
+            inputMode="numeric"
+            maxLength={13}
+            placeholder="20-45123678-3"
+          />
         </div>
         <div>
           <Label htmlFor="c-pass">Contraseña</Label>
@@ -259,6 +300,29 @@ function EditStudentDialog({
           <div>
             <Label htmlFor="e-email">Email</Label>
             <Input id="e-email" name="email" type="email" defaultValue={student.email} required />
+          </div>
+          <div>
+            <Label htmlFor="e-dni">DNI (opcional)</Label>
+            <Input
+              id="e-dni"
+              name="dni"
+              inputMode="numeric"
+              pattern="\d{7,9}"
+              maxLength={9}
+              defaultValue={student.dni ?? ""}
+              placeholder="45123678"
+            />
+          </div>
+          <div>
+            <Label htmlFor="e-cuit">CUIT (opcional)</Label>
+            <Input
+              id="e-cuit"
+              name="cuit"
+              inputMode="numeric"
+              maxLength={13}
+              defaultValue={student.cuit ? formatCuit(student.cuit) : ""}
+              placeholder="20-45123678-3"
+            />
           </div>
           <div>
             <Label htmlFor="e-group">Grupo</Label>

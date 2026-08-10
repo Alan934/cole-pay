@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { requireAdminSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatMoney, formatDate } from "@/lib/utils";
+import { taxIdText } from "@/lib/identity";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
@@ -21,6 +22,24 @@ const typeLabels: Record<string, { label: string; tone: "accent" | "violet" | "w
   INTEREST: { label: "Interés", tone: "violet" },
   SAVINGS: { label: "Ahorro", tone: "neutral" },
 };
+
+/** Nombre de la persona y su identificación (CUIT o, si no tiene, DNI). */
+function Party({
+  user,
+  fallback,
+}: {
+  user: { name: string; dni: string | null; cuit: string | null } | null;
+  fallback: string;
+}) {
+  if (!user) return <span>{fallback}</span>;
+  const id = taxIdText(user);
+  return (
+    <div>
+      <p>{user.name}</p>
+      {id && <p className="font-mono text-xs text-ink/40">{id}</p>}
+    </div>
+  );
+}
 
 export default async function TransactionsPage({
   searchParams,
@@ -120,10 +139,10 @@ export default async function TransactionsPage({
                         <Badge tone={t.tone}>{t.label}</Badge>
                       </td>
                       <td className="px-5 py-3 text-ink/80">
-                        {tx.sender?.name ?? "Banco Central"}
+                        <Party user={tx.sender} fallback="Banco Central" />
                       </td>
                       <td className="px-5 py-3 text-ink/80">
-                        {tx.receiver?.name ?? "Sistema"}
+                        <Party user={tx.receiver} fallback="Sistema" />
                       </td>
                       <td className="px-5 py-3 text-ink/60">
                         {tx.description}

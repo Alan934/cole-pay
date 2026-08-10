@@ -6,6 +6,7 @@ import {
   switchTo,
   expectMainContains,
 } from "./helpers/auth";
+import { chooseOption } from "./helpers/ui";
 
 test.describe("Flujos mixtos (alumno + admin)", () => {
   test.beforeEach(async ({ page }) => {
@@ -29,7 +30,7 @@ test.describe("Flujos mixtos (alumno + admin)", () => {
     const depForm = page.locator("form", {
       has: page.getByLabel("Concepto (opcional)"),
     });
-    await depForm.getByLabel("Alumno").selectOption({ label: "Sofia Test (3A2026)" });
+    await chooseOption(depForm.getByLabel("Alumno"), "Sofia Test");
     await depForm.getByLabel("Monto").fill("2000");
     await depForm.getByRole("button", { name: "Cargar saldo" }).click();
     await expect
@@ -40,7 +41,7 @@ test.describe("Flujos mixtos (alumno + admin)", () => {
     await page.goto("/admin/services");
     await page.getByLabel("Concepto").fill("Alquiler Stand");
     await page.getByLabel("Monto").fill("1000");
-    await page.locator('select[name="groupId"]').selectOption({ label: "3A2026" });
+    await chooseOption(page.getByRole("combobox"), "3A2026");
     await page.getByRole("button", { name: "Crear cobro" }).click();
     await expectMainContains(page, "Se crearon 3 cobro(s)");
 
@@ -221,7 +222,7 @@ test.describe("Flujos mixtos (alumno + admin)", () => {
     await loginAdmin(page);
     const form = page.locator("form", { has: page.getByLabel("Motivo") });
     await form.getByRole("button", { name: /Premio/ }).click();
-    await form.getByLabel("Alumno").selectOption({ label: "Sofia Test (3A2026)" });
+    await chooseOption(form.getByLabel("Alumno"), "Sofia Test");
     await form.getByLabel("Monto").fill("1000");
     await form.getByLabel("Motivo").fill("Excelente stand");
     await form.getByRole("button", { name: "Premiar" }).click();
@@ -243,7 +244,7 @@ test.describe("Flujos mixtos (alumno + admin)", () => {
     await page.getByLabel("Concepto").fill("Alquiler semanal");
     await page.getByLabel("Monto").fill("200");
     await page.getByLabel("Cada (días)").fill("7");
-    await page.getByLabel("Grupo").selectOption({ label: "3A2026" });
+    await chooseOption(page.getByLabel("Grupo"), "3A2026");
     await page.getByRole("button", { name: "Programar" }).click();
     await expectMainContains(page, "Cobro recurrente programado");
     await page.getByRole("button", { name: "Generar vencidos" }).click();

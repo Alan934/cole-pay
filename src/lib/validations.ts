@@ -128,9 +128,29 @@ export const aliasSchema = z.object({
     .regex(/^[a-z0-9.\-_]+$/, "Solo letras, números y . - _"),
 });
 
+/** DNI argentino: solo dígitos, 7 u 8 (se acepta hasta 9 por las dudas). Opcional. */
+const dniField = z
+  .string()
+  .trim()
+  .regex(/^\d{7,9}$/, "DNI inválido: solo números (7 a 9 dígitos)")
+  .optional();
+
+/**
+ * CUIT: 11 dígitos. Se puede escribir con o sin guiones (20-45123678-3) y se
+ * guarda sin ellos. Opcional.
+ */
+const cuitField = z
+  .string()
+  .trim()
+  .transform((v) => v.replace(/[\s.-]/g, ""))
+  .refine((v) => /^\d{11}$/.test(v), "CUIT inválido: deben ser 11 dígitos")
+  .optional();
+
 export const createUserSchema = z.object({
   name: z.string().trim().min(2, "Nombre demasiado corto"),
   email: z.string().email("Email inválido").toLowerCase(),
+  dni: dniField,
+  cuit: cuitField,
   password: z.string().min(4, "Mínimo 4 caracteres"),
   groupId: z.string().optional(),
   role: z.enum(["ADMIN", "STUDENT"]).default("STUDENT"),
@@ -140,6 +160,8 @@ export const editUserSchema = z.object({
   userId: z.string().min(1),
   name: z.string().trim().min(2, "Nombre demasiado corto"),
   email: z.string().email("Email inválido").toLowerCase(),
+  dni: dniField,
+  cuit: cuitField,
   groupId: z.string().optional(),
   password: z.string().optional(),
 });
