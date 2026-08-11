@@ -1,11 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { formatCuit, formatDni } from "@/lib/identity";
-
-function csvEscape(value: string): string {
-  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
-}
+import { buildCsv } from "@/lib/csv";
 
 export async function GET() {
   const session = await auth();
@@ -39,22 +35,18 @@ export async function GET() {
     "Monto",
     "Vencimiento",
   ];
-  const rows = invoices.map((i) =>
-    [
-      i.student.name,
-      i.student.dni ? formatDni(i.student.dni) : "",
-      i.student.cuit ? formatCuit(i.student.cuit) : "",
-      i.student.email,
-      i.student.group?.name ?? "",
-      i.description,
-      i.amount.toString(),
-      i.dueDate ? i.dueDate.toISOString().slice(0, 10) : "",
-    ]
-      .map((v) => csvEscape(String(v)))
-      .join(","),
-  );
+  const rows = invoices.map((i) => [
+    i.student.name,
+    i.student.dni ? formatDni(i.student.dni) : "",
+    i.student.cuit ? formatCuit(i.student.cuit) : "",
+    i.student.email,
+    i.student.group?.name ?? "",
+    i.description,
+    i.amount.toString(),
+    i.dueDate ? i.dueDate.toISOString().slice(0, 10) : "",
+  ]);
 
-  const csv = "﻿" + [header.join(","), ...rows].join("\r\n");
+  const csv = buildCsv(header, rows);
 
   return new Response(csv, {
     headers: {

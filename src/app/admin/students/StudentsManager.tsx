@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { UserPlus, Pencil, X, Search } from "lucide-react";
+import { UserPlus, Pencil, X, Search, FilterX } from "lucide-react";
 import { createUser, editUser } from "@/app/actions/admin";
 import type { ActionResult } from "@/app/actions/student";
 import { Card, CardTitle } from "@/components/ui/Card";
@@ -33,6 +33,33 @@ export type GroupOpt = { id: string; name: string };
 /** Constante a nivel módulo: fuse.js reindexa si cambia la referencia. */
 const STUDENT_KEYS = ["name", "email", "dni", "cuit", "groupName"];
 
+/** Valor del filtro de grupo: un id, o estos dos casos especiales. */
+const ALL = "__all__";
+const NO_GROUP = "__none__";
+
+type BalanceFilter = "all" | "positive" | "zero" | "negative";
+type SortKey = "name" | "name-desc" | "balance-desc" | "balance-asc" | "group";
+
+const balanceMatchers: Record<BalanceFilter, (b: number) => boolean> = {
+  all: () => true,
+  positive: (b) => b > 0,
+  zero: (b) => b === 0,
+  negative: (b) => b < 0,
+};
+
+const collator = new Intl.Collator("es", { sensitivity: "base" });
+
+const sorters: Record<SortKey, (a: StudentRow, b: StudentRow) => number> = {
+  name: (a, b) => collator.compare(a.name, b.name),
+  "name-desc": (a, b) => collator.compare(b.name, a.name),
+  "balance-desc": (a, b) => b.balance - a.balance,
+  "balance-asc": (a, b) => a.balance - b.balance,
+  // Los alumnos sin grupo van al final, y dentro de cada grupo por nombre.
+  group: (a, b) =>
+    collator.compare(a.groupName ?? "￿", b.groupName ?? "￿") ||
+    collator.compare(a.name, b.name),
+};
+
 function SubmitBtn({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
@@ -45,29 +72,168 @@ function SubmitBtn({ label }: { label: string }) {
 export function StudentsManager({
   students,
   groups,
+  initialGroupId = null,
 }: {
   students: StudentRow[];
   groups: GroupOpt[];
+  /** Grupo preseleccionado por `?grupo=` (link desde la página de grupos). */
+  initialGroupId?: string | null;
 }) {
   const [query, setQuery] = useState("");
+  const [groupId, setGroupId] = useState(() =>
+    initialGroupId === NO_GROUP ||
+    groups.some((g) => g.id === initialGroupId)
+      ? (initialGroupId as string)
+      : ALL,
+  );
+  const [balance, setBalance] = useState<BalanceFilter>("all");
+  const [sort, setSort] = useState<SortKey>("name");
   const [editing, setEditing] = useState<StudentRow | null>(null);
+  // El SearchSelect es no controlado: se remonta para reflejar los cambios
+  // que no vienen de él (limpiar filtros, clic en el grupo de la tabla).
+  const [groupFieldKey, setGroupFieldKey] = useState(0);
 
-  const filtered = useFuzzyList(students, STUDENT_KEYS, query);
+  const groupFilterOptions = useMemo(
+    () => [
+      { value: ALL, label: "Todos los grupos" },
+      { value: NO_GROUP, label: "Sin grupo" },
+      ...groups.map((g) => ({ value: g.id, label: g.name })),
+    ],
+    [groups],
+  );
+
+  // Primero los filtros exactos y después la búsqueda difusa: así fuse indexa
+  // menos y "3B" no trae alumnos de otro grupo cuando ya elegiste uno.
+  const scoped = useMemo(() => {
+    const matchesBalance = balanceMatchers[balance];
+    return students.filter(
+      (s) =>
+        (groupId === ALL ||
+          (groupId === NO_GROUP ? s.groupId === null : s.groupId === groupId)) &&
+        matchesBalance(s.balance),
+    );
+  }, [students, groupId, balance]);
+
+  const found = useFuzzyList(scoped, STUDENT_KEYS, query);
+  const filtered = useMemo(
+    () => [...found].sort(sorters[sort]),
+    [found, sort],
+  );
+
+  const selectedGroup =
+    groupId === ALL || groupId === NO_GROUP
+      ? null
+      : groups.find((g) => g.id === groupId) ?? null;
+
+  const dirty =
+    query !== "" || groupId !== ALL || balance !== "all" || sort !== "name";
+
+  function pickGroup(value: string) {
+    setGroupId(value);
+    setGroupFieldKey((k) => k + 1);
+  }
+
+  function clearFilters() {
+    setQuery("");
+    setGroupId(ALL);
+    setBalance("all");
+    setSort("name");
+    setGroupFieldKey((k) => k + 1);
+  }
+
+  // Mantiene el `?grupo=` en sintonía con el filtro para que la URL se pueda
+  // compartir y sobreviva a un refresh. `replaceState` en vez de router.replace:
+  // no hace falta volver a pedirle la página al servidor.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (groupId === ALL) url.searchParams.delete("grupo");
+    else url.searchParams.set("grupo", groupId);
+    if (url.href !== window.location.href) {
+      window.history.replaceState(null, "", url);
+    }
+  }, [groupId]);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
       <CreateStudentForm groups={groups} />
 
       <div className="flex flex-col gap-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/40" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por nombre, email, DNI, CUIT o grupo…"
-            className="pl-9"
-          />
-        </div>
+        <Card className="flex flex-col gap-3 p-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/40" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Nombre, apellido, email, DNI o CUIT…"
+              aria-label="Buscar alumno"
+              className="pl-9"
+            />
+          </div>
+
+          {/*
+            Tres columnas como máximo: con cuatro el combobox de grupos queda
+            en ~200px y, entre el ícono y el chevron, se corta "Todos los grupos".
+          */}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <SearchSelect
+              key={groupFieldKey}
+              name="filter-group"
+              aria-label="Filtrar por grupo"
+              options={groupFilterOptions}
+              defaultValue={groupId}
+              placeholder="Todos los grupos"
+              searchPlaceholder="Buscar grupo…"
+              emptyMessage="No se encontró ningún grupo."
+              onChange={setGroupId}
+            />
+
+            <Select
+              value={balance}
+              onChange={(e) => setBalance(e.target.value as BalanceFilter)}
+              aria-label="Filtrar por saldo"
+            >
+              <option value="all">Cualquier saldo</option>
+              <option value="positive">Con saldo</option>
+              <option value="zero">En cero</option>
+              <option value="negative">En negativo</option>
+            </Select>
+
+            <Select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              aria-label="Ordenar"
+            >
+              <option value="name">Nombre (A → Z)</option>
+              <option value="name-desc">Nombre (Z → A)</option>
+              <option value="balance-desc">Saldo (mayor primero)</option>
+              <option value="balance-asc">Saldo (menor primero)</option>
+              <option value="group">Grupo</option>
+            </Select>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-ink/50">
+              {filtered.length} de {students.length} alumno(s)
+              {selectedGroup && (
+                <>
+                  {" · grupo "}
+                  <span className="text-violet">{selectedGroup.name}</span>
+                </>
+              )}
+              {groupId === NO_GROUP && " · sin grupo"}
+            </p>
+            {dirty && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-ink/60 transition-colors hover:bg-raised2 hover:text-ink"
+              >
+                <FilterX className="h-3.5 w-3.5" />
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+        </Card>
 
         <Card className="overflow-hidden p-0">
           <div className="overflow-x-auto">
@@ -116,8 +282,15 @@ export function StudentsManager({
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        {s.groupName ? (
-                          <Badge tone="violet">{s.groupName}</Badge>
+                        {s.groupName && s.groupId ? (
+                          <button
+                            type="button"
+                            onClick={() => pickGroup(s.groupId!)}
+                            title={`Ver sólo ${s.groupName}`}
+                            className="rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                          >
+                            <Badge tone="violet">{s.groupName}</Badge>
+                          </button>
                         ) : (
                           <span className="text-ink/30">—</span>
                         )}

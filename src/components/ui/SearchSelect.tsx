@@ -40,6 +40,8 @@ type Props = {
   searchPlaceholder?: string;
   emptyMessage?: string;
   className?: string;
+  /** Para cuando no hay un `<Label>` asociado (ej: filtros de una tabla). */
+  "aria-label"?: string;
   onChange?: (value: string) => void;
 };
 
@@ -59,6 +61,7 @@ export function SearchSelect({
   searchPlaceholder = "Escribí para buscar…",
   emptyMessage = "Sin resultados.",
   className,
+  "aria-label": ariaLabel,
   onChange,
 }: Props) {
   const autoId = useId();
@@ -225,6 +228,7 @@ export function SearchSelect({
           type="text"
           role="combobox"
           autoComplete="off"
+          aria-label={ariaLabel}
           aria-expanded={open}
           aria-controls={listId}
           aria-autocomplete="list"
