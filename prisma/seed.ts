@@ -16,6 +16,8 @@ async function upsertUser(opts: {
   password: string;
   role: "ADMIN" | "STUDENT";
   alias: string;
+  dni?: string | null;
+  cuit?: string | null;
   balance?: number;
   groupId?: string | null;
 }) {
@@ -29,6 +31,8 @@ async function upsertUser(opts: {
     data: {
       name: opts.name,
       email: opts.email,
+      dni: opts.dni ?? null,
+      cuit: opts.cuit ?? null,
       passwordHash,
       role: opts.role,
       groupId: opts.groupId ?? null,
@@ -109,11 +113,12 @@ async function main() {
 
   // Alumnos de ejemplo
   const alumnos = [
-    { name: "Sofía Gómez", email: "sofia@colepay.edu", alias: "sofia.sol.mar", balance: 5000, groupId: grupoA.id },
-    { name: "Mateo Pérez", email: "mateo@colepay.edu", alias: "mateo.rio.cielo", balance: 3200, groupId: grupoA.id },
-    { name: "Valentina Ruiz", email: "valen@colepay.edu", alias: "valen.luna.flor", balance: 8000, groupId: grupoA.id },
-    { name: "Benjamín Díaz", email: "benja@colepay.edu", alias: "benja.monte.faro", balance: 1500, groupId: grupoB.id },
-    { name: "Martina López", email: "martina@colepay.edu", alias: "martina.nube.coral", balance: 6400, groupId: grupoB.id },
+    // Algunos con CUIT y otros sin: en el comprobante se ve cómo cae de vuelta al DNI.
+    { name: "Sofía Gómez", email: "sofia@colepay.edu", dni: "48123001", cuit: "27481230014", alias: "sofia.sol.mar", balance: 5000, groupId: grupoA.id },
+    { name: "Mateo Pérez", email: "mateo@colepay.edu", dni: "48123002", cuit: "20481230029", alias: "mateo.rio.cielo", balance: 3200, groupId: grupoA.id },
+    { name: "Valentina Ruiz", email: "valen@colepay.edu", dni: "48123003", cuit: null, alias: "valen.luna.flor", balance: 8000, groupId: grupoA.id },
+    { name: "Benjamín Díaz", email: "benja@colepay.edu", dni: "48123004", cuit: null, alias: "benja.monte.faro", balance: 1500, groupId: grupoB.id },
+    { name: "Martina López", email: "martina@colepay.edu", dni: "48123005", cuit: null, alias: "martina.nube.coral", balance: 6400, groupId: grupoB.id },
   ];
 
   for (const a of alumnos) {
@@ -123,6 +128,8 @@ async function main() {
       password: "alumno1234",
       role: "STUDENT",
       alias: a.alias,
+      dni: a.dni,
+      cuit: a.cuit,
       balance: a.balance,
       groupId: a.groupId,
     });

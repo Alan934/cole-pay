@@ -1,10 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-
-function csvEscape(value: string): string {
-  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
-}
+import { formatCuit, formatDni } from "@/lib/identity";
+import { buildCsv } from "@/lib/csv";
 
 export async function GET() {
   const session = await auth();
@@ -21,27 +18,30 @@ export async function GET() {
     "Fecha",
     "Tipo",
     "De",
+    "De DNI",
+    "De CUIT",
     "Para",
+    "Para DNI",
+    "Para CUIT",
     "Categoria",
     "Descripcion",
     "Monto",
   ];
-  const rows = txs.map((t) =>
-    [
-      t.timestamp.toISOString(),
-      t.type,
-      t.sender?.name ?? "Banco Central",
-      t.receiver?.name ?? "Sistema",
-      t.category ?? "",
-      t.description,
-      t.amount.toString(),
-    ]
-      .map((v) => csvEscape(String(v)))
-      .join(","),
-  );
+  const rows = txs.map((t) => [
+    t.timestamp.toISOString(),
+    t.type,
+    t.sender?.name ?? "Banco Central",
+    t.sender?.dni ? formatDni(t.sender.dni) : "",
+    t.sender?.cuit ? formatCuit(t.sender.cuit) : "",
+    t.receiver?.name ?? "Sistema",
+    t.receiver?.dni ? formatDni(t.receiver.dni) : "",
+    t.receiver?.cuit ? formatCuit(t.receiver.cuit) : "",
+    t.category ?? "",
+    t.description,
+    t.amount.toString(),
+  ]);
 
-  // BOM para que Excel reconozca UTF-8.
-  const csv = "﻿" + [header.join(","), ...rows].join("\r\n");
+  const csv = buildCsv(header, rows);
 
   return new Response(csv, {
     headers: {

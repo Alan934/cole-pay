@@ -1,4 +1,5 @@
 import { requireStudent } from "@/lib/session";
+import { formatCuit, formatDni } from "@/lib/identity";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { LogoutButton } from "@/components/LogoutButton";
 import { AliasForm } from "./AliasForm";
@@ -22,6 +23,12 @@ export default async function SettingsPage() {
           <div>
             <p className="font-semibold">{me.name}</p>
             <p className="text-sm text-ink/50">{me.email}</p>
+            {me.dni && (
+              <p className="text-xs text-ink/40">DNI: {formatDni(me.dni)}</p>
+            )}
+            {me.cuit && (
+              <p className="text-xs text-ink/40">CUIT: {formatCuit(me.cuit)}</p>
+            )}
             {me.group && (
               <p className="text-xs text-ink/40">Grupo: {me.group.name}</p>
             )}

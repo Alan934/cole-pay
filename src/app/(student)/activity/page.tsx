@@ -28,7 +28,12 @@ export default async function ActivityPage({
 
   const transactions = await prisma.transaction.findMany({
     where,
-    include: { sender: true, receiver: true, accrual: true },
+    include: {
+      // La billetera de la otra parte se usa en el detalle del comprobante.
+      sender: { include: { wallet: true } },
+      receiver: { include: { wallet: true } },
+      accrual: true,
+    },
     orderBy: { timestamp: "desc" },
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE,

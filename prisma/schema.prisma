@@ -82,6 +82,8 @@ model User {
   id           String   @id @default(cuid())
   name         String
   email        String   @unique
+  dni          String?  @unique // documento del alumno (opcional)
+  cuit         String?  @unique // 11 dígitos, sin guiones (opcional)
   passwordHash String
   role         Role     @default(STUDENT)
   createdAt    DateTime @default(now())
