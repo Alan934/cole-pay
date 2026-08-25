@@ -6,7 +6,11 @@ import {
   switchTo,
   expectMainContains,
 } from "./helpers/auth";
-import { chooseOption } from "./helpers/ui";
+import {
+  chooseOption,
+  submitTransfer,
+  submitTransferExpectingError,
+} from "./helpers/ui";
 
 test.describe("Flujos mixtos (alumno + admin)", () => {
   test.beforeEach(async ({ page }) => {
@@ -55,7 +59,7 @@ test.describe("Flujos mixtos (alumno + admin)", () => {
     await page.getByLabel("CVU o Alias del destinatario").fill("mateo.test.dos");
     await page.getByLabel("Monto").fill("500");
     await page.getByLabel("Categoría").selectOption("Entretenimiento");
-    await page.getByRole("button", { name: "Enviar dinero" }).click();
+    await submitTransfer(page);
     await expectMainContains(page, "¡Transferencia exitosa!");
 
     await page.goto("/bills");
@@ -106,7 +110,7 @@ test.describe("Flujos mixtos (alumno + admin)", () => {
       "sofia.test.uno",
     );
     await expect(page.getByLabel("Monto")).toHaveValue("800");
-    await page.getByRole("button", { name: "Enviar dinero" }).click();
+    await submitTransfer(page);
     await expectMainContains(page, "¡Transferencia exitosa!");
 
     /* El pedido queda saldado y con el pagador correcto. */
@@ -281,7 +285,7 @@ test.describe("Flujos mixtos (alumno + admin)", () => {
     await page.goto("/transfer");
     await page.getByLabel("CVU o Alias del destinatario").fill("mateo.test.dos");
     await page.getByLabel("Monto").fill("3000");
-    await page.getByRole("button", { name: "Enviar dinero" }).click();
+    await submitTransferExpectingError(page);
     await expectMainContains(page, "Saldo insuficiente");
     expect(await balanceOf(USERS.mateo)).toBe(3000);
   });
@@ -294,7 +298,7 @@ test.describe("Flujos mixtos (alumno + admin)", () => {
     await page.goto("/transfer");
     await page.getByLabel("CVU o Alias del destinatario").fill("valen.test.tres");
     await page.getByLabel("Monto").fill("1500");
-    await page.getByRole("button", { name: "Enviar dinero" }).click();
+    await submitTransfer(page);
     await expectMainContains(page, "¡Transferencia exitosa!");
     expect(await totalMoney()).toBe(inicial);
 
