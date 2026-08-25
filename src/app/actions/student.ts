@@ -4,13 +4,59 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireStudent } from "@/lib/session";
+import { taxIdOf, type TaxId } from "@/lib/identity";
 import { transferSchema, aliasSchema } from "@/lib/validations";
 
 export type ActionResult =
   | { ok: true; message: string }
   | { ok: false; error: string };
 
+/** Datos del destinatario que se muestran antes de confirmar una transferencia. */
+export type DestinationLookup =
+  | { ok: true; name: string; taxId: TaxId | null; alias: string; cvu: string }
+  | { ok: false; error: string };
+
 const D = (v: number | string) => new Prisma.Decimal(v);
+
+/** Busca una billetera por alias o CVU (lo que el alumno haya escrito). */
+async function findDestination(destination: string) {
+  const dest = destination.trim();
+  return prisma.wallet.findFirst({
+    where: { OR: [{ alias: dest.toLowerCase() }, { cvu: dest }] },
+    include: { user: true },
+  });
+}
+
+/**
+ * Devuelve a quién le va a llegar la plata, para mostrarlo en el cartel de
+ * confirmación antes de mandar la transferencia (nombre + DNI/CUIT), igual
+ * que en un banco de verdad.
+ */
+export async function lookupDestination(
+  destination: string,
+): Promise<DestinationLookup> {
+  const me = await requireStudent();
+
+  if (!destination || destination.trim().length < 3) {
+    return { ok: false, error: "Ingresá un CVU o alias válido" };
+  }
+
+  const destWallet = await findDestination(destination);
+  if (!destWallet) {
+    return { ok: false, error: "No se encontró una cuenta con ese CVU o alias." };
+  }
+  if (destWallet.userId === me.id) {
+    return { ok: false, error: "No podés transferirte dinero a vos mismo." };
+  }
+
+  return {
+    ok: true,
+    name: destWallet.user.name,
+    taxId: taxIdOf(destWallet.user),
+    alias: destWallet.alias,
+    cvu: destWallet.cvu,
+  };
+}
 
 /** Transferencia alumno -> alumno buscando por CVU o alias. */
 export async function transferMoney(
@@ -33,11 +79,7 @@ export async function transferMoney(
   const requestId = String(formData.get("req") || "");
 
   // Buscar destino por alias o CVU.
-  const dest = destination.trim();
-  const destWallet = await prisma.wallet.findFirst({
-    where: { OR: [{ alias: dest.toLowerCase() }, { cvu: dest }] },
-    include: { user: true },
-  });
+  const destWallet = await findDestination(destination);
 
   if (!destWallet) {
     return { ok: false, error: "No se encontró una cuenta con ese CVU o alias." };

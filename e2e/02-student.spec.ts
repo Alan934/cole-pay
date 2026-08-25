@@ -7,6 +7,7 @@ import {
   totalMoney,
 } from "./helpers/db";
 import { loginStudent, expectMainContains } from "./helpers/auth";
+import { submitTransfer, submitTransferExpectingError } from "./helpers/ui";
 
 test.describe("Flujo del alumno", () => {
   test.beforeEach(async ({ page }) => {
@@ -35,7 +36,7 @@ test.describe("Flujo del alumno", () => {
     await page.getByLabel("Monto").fill("1200");
     await page.getByLabel("Categoría").selectOption("Comida");
     await page.getByLabel("Mensaje (opcional)").fill("El almuerzo");
-    await page.getByRole("button", { name: "Enviar dinero" }).click();
+    await submitTransfer(page);
 
     await expectMainContains(page, "¡Transferencia exitosa!");
     expect(await balanceOf(USERS.sofia)).toBe(3800);
@@ -53,7 +54,7 @@ test.describe("Flujo del alumno", () => {
     await page.getByLabel("Monto").fill("1200");
     await page.getByLabel("Categoría").selectOption("Comida");
     await page.getByLabel("Mensaje (opcional)").fill("El almuerzo");
-    await page.getByRole("button", { name: "Enviar dinero" }).click();
+    await submitTransfer(page);
     await expectMainContains(page, "¡Transferencia exitosa!");
 
     // Día completo tal como lo arma Intl en el servidor.
@@ -98,7 +99,7 @@ test.describe("Flujo del alumno", () => {
       .getByLabel("CVU o Alias del destinatario")
       .fill("7777777777777777777774"); // CVU de Mateo
     await page.getByLabel("Monto").fill("500");
-    await page.getByRole("button", { name: "Enviar dinero" }).click();
+    await submitTransfer(page);
     await expectMainContains(page, "¡Transferencia exitosa!");
     expect(await balanceOf(USERS.mateo)).toBe(3500);
   });
@@ -108,7 +109,7 @@ test.describe("Flujo del alumno", () => {
     await page.goto("/transfer");
     await page.getByLabel("CVU o Alias del destinatario").fill("mateo.test.dos");
     await page.getByLabel("Monto").fill("999999");
-    await page.getByRole("button", { name: "Enviar dinero" }).click();
+    await submitTransferExpectingError(page);
     await expectMainContains(page, "Saldo insuficiente");
     expect(await balanceOf(USERS.sofia)).toBe(5000);
     expect(await balanceOf(USERS.mateo)).toBe(3000);
@@ -119,7 +120,7 @@ test.describe("Flujo del alumno", () => {
     await page.goto("/transfer");
     await page.getByLabel("CVU o Alias del destinatario").fill("sofia.test.uno");
     await page.getByLabel("Monto").fill("100");
-    await page.getByRole("button", { name: "Enviar dinero" }).click();
+    await submitTransferExpectingError(page);
     await expectMainContains(page, "No podés transferirte dinero a vos mismo");
     expect(await balanceOf(USERS.sofia)).toBe(5000);
   });
@@ -129,7 +130,7 @@ test.describe("Flujo del alumno", () => {
     await page.goto("/transfer");
     await page.getByLabel("CVU o Alias del destinatario").fill("no.existe.nadie");
     await page.getByLabel("Monto").fill("100");
-    await page.getByRole("button", { name: "Enviar dinero" }).click();
+    await submitTransferExpectingError(page);
     await expectMainContains(page, "No se encontró una cuenta");
     expect(await balanceOf(USERS.sofia)).toBe(5000);
   });
@@ -215,7 +216,7 @@ test.describe("Flujo del alumno", () => {
     await page.goto("/transfer");
     await page.getByLabel("CVU o Alias del destinatario").fill("sofia.test.uno");
     await page.getByLabel("Monto").fill("300");
-    await page.getByRole("button", { name: "Enviar dinero" }).click();
+    await submitTransfer(page);
     await expectMainContains(page, "¡Transferencia exitosa!");
 
     // Sofía la ve.
@@ -417,7 +418,7 @@ test.describe("Flujo del alumno", () => {
     await page.getByLabel("CVU o Alias del destinatario").fill("mateo.test.dos");
     await page.getByLabel("Monto").fill("400");
     await page.getByLabel("Categoría").selectOption("Comida");
-    await page.getByRole("button", { name: "Enviar dinero" }).click();
+    await submitTransfer(page);
     await expectMainContains(page, "¡Transferencia exitosa!");
 
     await page.goto("/dashboard");
