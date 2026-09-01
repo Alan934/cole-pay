@@ -8,6 +8,7 @@ import {
   Landmark,
   PieChart,
   TrendingUp,
+  Trophy,
   ChevronRight,
 } from "lucide-react";
 import { requireStudent } from "@/lib/session";
@@ -16,6 +17,7 @@ import { toTxView } from "@/lib/tx";
 import { formatMoney } from "@/lib/utils";
 import { getSettingsView } from "@/lib/settings";
 import { simpleInterest } from "@/lib/interest";
+import { QUIZ_QUESTIONS } from "@/lib/quiz";
 import { BalanceCard } from "@/components/student/BalanceCard";
 import { TransactionRow } from "@/components/student/TransactionRow";
 import { SpendingSummary } from "@/components/student/SpendingSummary";
@@ -40,6 +42,7 @@ export default async function DashboardPage() {
     savedAgg,
     settings,
     earnedAgg,
+    quizSolved,
   ] = await Promise.all([
       prisma.transaction.findMany({
         where: { OR: [{ senderId: me.id }, { receiverId: me.id }] },
@@ -74,6 +77,12 @@ export default async function DashboardPage() {
         where: { userId: me.id },
         _sum: { interest: true },
       }),
+      // Cuántas preguntas del desafío ya resolvió bien (sin contar reintentos).
+      prisma.quizAttempt.findMany({
+        where: { userId: me.id, correct: true },
+        distinct: ["questionId"],
+        select: { questionId: true },
+      }),
     ]);
 
   const balance = Number(me.wallet?.balance ?? 0);
@@ -81,7 +90,51 @@ export default async function DashboardPage() {
   const saved = Number(savedAgg._sum.savedAmount ?? 0);
   const earned = Number(earnedAgg._sum.interest ?? 0);
   const perDay = simpleInterest(balance, settings.balanceTnaPct, 1);
+  const quizDone = quizSolved.length;
+  const quizTotal = QUIZ_QUESTIONS.length;
   const txViews = transactions.map((t) => toTxView(t, me.id));
+
+  // El desafío está al final de /rendimientos: sin este acceso no se ve.
+  // Una vez completo deja de ser una tarea pendiente, así que baja al fondo.
+  const quizComplete = quizDone === quizTotal;
+  const quizCard = (
+    <Link href="/rendimientos#desafio">
+      <Card
+        className={`flex items-center justify-between gap-3 transition-colors ${
+          quizComplete
+            ? "border-accent/25 bg-accent/5 hover:border-accent/50"
+            : "border-warning/30 bg-warning/5 hover:border-warning/60"
+        }`}
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <div
+            className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${
+              quizComplete
+                ? "bg-accent/15 text-accent"
+                : "bg-warning/15 text-warning"
+            }`}
+          >
+            <Trophy className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <CardTitle className="text-ink/80">
+              Desafío: {quizTotal} preguntas
+            </CardTitle>
+            <p className="mt-0.5 text-xs text-ink/45">
+              {quizDone === 0
+                ? "Poné a prueba lo que sabés de TNA, interés e inflación."
+                : !quizComplete
+                  ? `Te faltan ${quizTotal - quizDone} para completarlo.`
+                  : "¡Completo! Podés reintentarlas cuando quieras."}
+            </p>
+          </div>
+        </div>
+        <Badge tone={quizComplete ? "success" : "warning"}>
+          {quizDone} / {quizTotal}
+        </Badge>
+      </Card>
+    </Link>
+  );
 
   const spending = spendingRaw
     .map((s) => ({
@@ -147,6 +200,9 @@ export default async function DashboardPage() {
           </Card>
         )}
       </Link>
+
+      {/* Mientras falten preguntas va arriba, donde se ve sin scrollear. */}
+      {!quizComplete && quizCard}
 
       {/* Accesos rápidos */}
       <div className="grid grid-cols-4 gap-2">
@@ -225,6 +281,9 @@ export default async function DashboardPage() {
           )}
         </Card>
       </div>
+
+      {/* Ya completo: queda al pie, como logro y no como pendiente. */}
+      {quizComplete && quizCard}
     </div>
   );
 }

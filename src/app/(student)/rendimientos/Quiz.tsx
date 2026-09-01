@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Trophy, CheckCircle2, ChevronRight } from "lucide-react";
 import { answerQuiz } from "@/app/actions/interest";
@@ -20,8 +20,22 @@ export function Quiz({ solvedIds }: { solvedIds: string[] }) {
   const question = QUIZ_QUESTIONS[index];
   const allDone = solved.size === QUIZ_QUESTIONS.length;
 
+  // El desafío está al final de una página larga: si se llega con #desafio
+  // (desde el inicio o desde el atajo de arriba) lo traemos a la vista. El
+  // scroll nativo del hash no siempre llega, porque la página se hidrata después.
+  useEffect(() => {
+    if (window.location.hash === "#desafio") {
+      document
+        .getElementById("desafio")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
+
   return (
-    <Card>
+    <Card
+      id="desafio"
+      className="scroll-mt-20 border-warning/30 bg-warning/5"
+    >
       <div className="mb-1 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Trophy className="h-5 w-5 text-warning" />
@@ -70,10 +84,10 @@ export function Quiz({ solvedIds }: { solvedIds: string[] }) {
   );
 }
 
-function Submit() {
+function Submit({ disabled }: { disabled: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="sm" disabled={pending}>
+    <Button type="submit" size="sm" disabled={pending || disabled}>
       {pending ? "Corrigiendo..." : "Responder"}
     </Button>
   );
@@ -92,6 +106,16 @@ function QuestionCard({
   );
   const [choice, setChoice] = useState("");
 
+  // Al terminar la action React resetea el form, y eso desmarca los radios en
+  // el DOM aunque `choice` siga apuntando a la opción elegida: quedaba el borde
+  // verde de "elegida" con el punto vacío, y el siguiente "Responder" mandaba
+  // answer vacío. Remontamos el grupo después de cada respuesta para que el DOM
+  // vuelva a nacer con el checked que dice el estado.
+  const [round, setRound] = useState(0);
+  useEffect(() => {
+    if (state) setRound((r) => r + 1);
+  }, [state]);
+
   return (
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="questionId" value={question.id} />
@@ -105,7 +129,7 @@ function QuestionCard({
         </p>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div key={round} className="flex flex-col gap-2">
         {question.options.map((opt) => (
           <label
             key={opt}
@@ -141,7 +165,7 @@ function QuestionCard({
       )}
 
       <div>
-        <Submit />
+        <Submit disabled={!choice} />
       </div>
     </form>
   );

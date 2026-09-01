@@ -1,4 +1,5 @@
-import { TrendingUp, Info, Flame } from "lucide-react";
+import Link from "next/link";
+import { TrendingUp, Info, Flame, Trophy } from "lucide-react";
 import { requireStudent } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getSettingsView, getActiveTerms } from "@/lib/settings";
@@ -9,7 +10,9 @@ import {
   realRate,
 } from "@/lib/interest";
 import { formatMoney } from "@/lib/utils";
+import { QUIZ_QUESTIONS } from "@/lib/quiz";
 import { Card, CardTitle } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 import { YieldCalculator } from "./YieldCalculator";
 import { InterestHistory } from "./InterestHistory";
 import { Glossary } from "./Glossary";
@@ -73,6 +76,22 @@ export default async function YieldsPage() {
           Tu plata puede trabajar sola. Acá aprendés cómo y cuánto.
         </p>
       </div>
+
+      {/* El desafío vive al final de la página: este atajo lo hace visible. */}
+      <Link
+        href="#desafio"
+        className="flex items-center justify-between gap-3 rounded-xl border border-warning/35 bg-warning/5 px-4 py-3 transition-colors hover:border-warning/70"
+      >
+        <span className="flex items-center gap-2 text-sm">
+          <Trophy className="h-4 w-4 shrink-0 text-warning" />
+          <span className="font-medium text-ink/80">
+            Desafío: {QUIZ_QUESTIONS.length} preguntas
+          </span>
+        </span>
+        <Badge tone={solved.size === QUIZ_QUESTIONS.length ? "success" : "warning"}>
+          {solved.size} / {QUIZ_QUESTIONS.length}
+        </Badge>
+      </Link>
 
       {!settings.interestEnabled ? (
         <Card className="flex flex-col items-center gap-2 py-8 text-center text-ink/50">
