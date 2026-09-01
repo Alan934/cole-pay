@@ -220,7 +220,9 @@ export async function answerQuiz(
   const me = await requireStudent();
   const parsed = quizAnswerSchema.safeParse({
     questionId: formData.get("questionId"),
-    answer: formData.get("answer"),
+    // Sin opción tildada el campo no viaja: lo pasamos a "" para que caiga en
+    // el "Elegí una respuesta" del schema y no en el error de tipo de zod.
+    answer: formData.get("answer") ?? "",
   });
   if (!parsed.success)
     return { ok: false, error: parsed.error.issues[0].message };
