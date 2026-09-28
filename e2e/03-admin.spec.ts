@@ -1,7 +1,29 @@
 import { test, expect } from "@playwright/test";
-import { resetAndSeed, USERS, db, balanceOf, PASSWORD_STUDENT } from "./helpers/db";
-import { loginAdmin, loginStudent, expectMainContains } from "./helpers/auth";
+import bcrypt from "bcryptjs";
+import {
+  resetAndSeed,
+  USERS,
+  db,
+  balanceOf,
+  PASSWORD_ADMIN,
+  PASSWORD_STUDENT,
+} from "./helpers/db";
+import { login, loginAdmin, loginStudent, expectMainContains } from "./helpers/auth";
 import { chooseOption } from "./helpers/ui";
+
+/** La profe de quinto: entra al panel, pero sólo a lo suyo. */
+const BANK_ADMIN_EMAIL = "quinto@test.colepay";
+
+async function createBankAdmin() {
+  return db.user.create({
+    data: {
+      name: "Profe de quinto",
+      email: BANK_ADMIN_EMAIL,
+      passwordHash: await bcrypt.hash(PASSWORD_ADMIN, 10),
+      role: "BANK_ADMIN",
+    },
+  });
+}
 
 test.describe("Flujo del admin (Banco Central)", () => {
   test.beforeEach(async ({ page }) => {
@@ -54,6 +76,61 @@ test.describe("Flujo del admin (Banco Central)", () => {
     await expectMainContains(page, /No tenés saldo suficiente/i);
     expect(await balanceOf(USERS.sofia)).toBe(5000);
     expect(await balanceOf(USERS.admin)).toBe(1_000_000);
+  });
+
+  test("carga el mismo capital inicial a todo un curso", async ({ page }) => {
+    await loginAdmin(page);
+    const depForm = page.locator("form", {
+      has: page.getByLabel("Concepto (opcional)"),
+    });
+    await depForm.getByRole("button", { name: "Un curso entero" }).click();
+    await chooseOption(depForm.getByLabel("Curso"), "3A2026");
+    await depForm.getByLabel("Monto por alumno").fill("1000");
+    await depForm.getByRole("button", { name: "Cargar a todo el curso" }).click();
+
+    await expectMainContains(page, "a cada uno de los 3 alumnos de 3A2026");
+    // Los tres de 3A reciben lo mismo; el de 3B no recibe nada.
+    await expect.poll(async () => balanceOf(USERS.sofia), { timeout: 15_000 }).toBe(6000);
+    expect(await balanceOf(USERS.mateo)).toBe(4000);
+    expect(await balanceOf(USERS.valen)).toBe(9000);
+    expect(await balanceOf(USERS.benja)).toBe(1500);
+    // El monto es por alumno: al banco le salieron 3.000, no 1.000.
+    expect(await balanceOf(USERS.admin)).toBe(997_000);
+    expect(await db.transaction.count({ where: { type: "DEPOSIT" } })).toBe(3);
+  });
+
+  test("si no alcanza para el curso entero no carga a nadie", async ({ page }) => {
+    await db.wallet.update({
+      where: { userId: (await db.user.findFirstOrThrow({ where: { email: USERS.admin } })).id },
+      data: { balance: 2500 }, // alcanza para dos alumnos, no para los tres
+    });
+
+    await loginAdmin(page);
+    const depForm = page.locator("form", {
+      has: page.getByLabel("Concepto (opcional)"),
+    });
+    await depForm.getByRole("button", { name: "Un curso entero" }).click();
+    await chooseOption(depForm.getByLabel("Curso"), "3A2026");
+    await depForm.getByLabel("Monto por alumno").fill("1000");
+    await depForm.getByRole("button", { name: "Cargar a todo el curso" }).click();
+
+    await expectMainContains(page, /hacen falta/i);
+    expect(await balanceOf(USERS.sofia)).toBe(5000);
+    expect(await balanceOf(USERS.mateo)).toBe(3000);
+    expect(await balanceOf(USERS.valen)).toBe(8000);
+    expect(await balanceOf(USERS.admin)).toBe(2500);
+  });
+
+  /* --------------------------- Importar desde Excel ----------------------- */
+
+  test("la profe de quinto también puede importar alumnos", async ({ page }) => {
+    await createBankAdmin();
+    await login(page, BANK_ADMIN_EMAIL, PASSWORD_ADMIN, "**/admin/banks");
+
+    await page.goto("/admin/students");
+    await page.getByRole("link", { name: "Importar desde Excel" }).click();
+    await page.waitForURL("**/admin/students/import", { timeout: 20_000 });
+    await expectMainContains(page, "Importar alumnos");
   });
 
   /* ------------------------------ Premios y multas ------------------------ */
@@ -265,6 +342,67 @@ test.describe("Flujo del admin (Banco Central)", () => {
     await page.waitForURL("**/dashboard");
   });
 
+  test("la profe de quinto corrige un alumno y le blanquea la contraseña", async ({
+    page,
+  }) => {
+    await createBankAdmin();
+    await login(page, BANK_ADMIN_EMAIL, PASSWORD_ADMIN, "**/admin/banks");
+
+    await page.goto("/admin/students");
+    await page
+      .locator("tr", { hasText: "Mateo Test" })
+      .getByRole("button", { name: "Editar" })
+      .click();
+    const dialog = page.locator("form", {
+      has: page.getByLabel("Nueva contraseña (opcional)"),
+    });
+    await dialog.getByLabel("Nombre").fill("Mateo Corregido");
+    await dialog.getByLabel("Nueva contraseña (opcional)").fill("clavedequinto");
+    await dialog.getByRole("button", { name: "Guardar cambios" }).click();
+
+    await expect
+      .poll(async () => (await db.user.findUnique({ where: { email: USERS.mateo } }))?.name, {
+        timeout: 15_000,
+      })
+      .toBe("Mateo Corregido");
+
+    // Y el alumno entra con la clave nueva.
+    await page.context().clearCookies();
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(USERS.mateo);
+    await page.getByLabel("Contraseña", { exact: true }).fill("clavedequinto");
+    await page.getByRole("button", { name: "Ingresar" }).click();
+    await page.waitForURL("**/dashboard");
+  });
+
+  test("la profe de quinto no puede crear otra profe", async ({ page }) => {
+    await createBankAdmin();
+    await login(page, BANK_ADMIN_EMAIL, PASSWORD_ADMIN, "**/admin/banks");
+    await page.goto("/admin/students");
+
+    // El alta no le ofrece el rol: sólo da de alta alumnos.
+    const form = page.locator("form", { has: page.getByLabel("Email (login)") });
+    await expect(form.getByLabel("Rol")).toHaveCount(0);
+
+    // Y aunque lo mande a mano, el servidor lo rechaza.
+    await form.getByLabel("Nombre").fill("Profe Colada");
+    await form.getByLabel("Email (login)").fill("colada@test.colepay");
+    await form.getByLabel("Contraseña", { exact: true }).fill("clave1234");
+    // El formulario manda `role=STUDENT` en un input oculto: lo pisamos para
+    // simular a alguien tocando el HTML.
+    await form.evaluate((el: HTMLFormElement) => {
+      const hidden = el.querySelector<HTMLInputElement>('input[name="role"]');
+      if (!hidden) throw new Error("no está el input oculto de rol");
+      hidden.value = "ADMIN";
+    });
+    await form.getByRole("button", { name: "Crear alumno" }).click();
+
+    await expectMainContains(page, /Sólo podés dar de alta alumnos/i);
+    expect(
+      await db.user.count({ where: { email: "colada@test.colepay" } }),
+    ).toBe(0);
+  });
+
   test("crea un grupo y rechaza nombres duplicados", async ({ page }) => {
     await loginAdmin(page);
     await page.goto("/admin/groups");
@@ -280,13 +418,31 @@ test.describe("Flujo del admin (Banco Central)", () => {
   test("el buscador de alumnos filtra la tabla", async ({ page }) => {
     await loginAdmin(page);
     await page.goto("/admin/students");
+    const buscador = page.getByLabel("Buscar alumno");
+
     await expect(page.locator("tbody tr")).toHaveCount(4);
-    await page.getByPlaceholder("Buscar por nombre, email, DNI, CUIT o grupo").fill("Sofia");
+    await buscador.fill("Sofia");
     await expect(page.locator("tbody tr")).toHaveCount(1);
-    await page.getByPlaceholder("Buscar por nombre, email, DNI, CUIT o grupo").fill("3B2026");
+    // El curso también entra en la búsqueda, y con números se busca la
+    // subcadena exacta: 3B2026 no trae a los de 3A2026.
+    await buscador.fill("3B2026");
     await expect(page.locator("tbody tr")).toHaveCount(1);
-    await page.getByPlaceholder("Buscar por nombre, email, DNI, CUIT o grupo").fill("zzz");
+    await buscador.fill("zzz");
     await expectMainContains(page, "Sin resultados");
+  });
+
+  test("el filtro de grupo acota la tabla y se puede limpiar", async ({
+    page,
+  }) => {
+    await loginAdmin(page);
+    await page.goto("/admin/students");
+    await expect(page.locator("tbody tr")).toHaveCount(4);
+
+    await chooseOption(page.getByLabel("Filtrar por grupo"), "3A2026");
+    await expect(page.locator("tbody tr")).toHaveCount(3);
+
+    await page.getByRole("button", { name: "Limpiar filtros" }).click();
+    await expect(page.locator("tbody tr")).toHaveCount(4);
   });
 
   test("el buscador de grupos filtra las tarjetas", async ({ page }) => {
@@ -508,21 +664,25 @@ test.describe("Flujo del admin (Banco Central)", () => {
     expect(txRes.status()).toBe(200);
     expect(txRes.headers()["content-type"]).toContain("text/csv");
     const txCsv = await txRes.text();
+    // Punto y coma y BOM a propósito: es lo que necesita Excel en español
+    // para no meter la fila entera en una columna ni romper los acentos.
+    expect(txCsv.startsWith("﻿")).toBe(true);
     expect(txCsv).toContain(
-      "Fecha,Tipo,De,De DNI,De CUIT,Para,Para DNI,Para CUIT,Categoria,Descripcion,Monto",
+      "Fecha;Tipo;De;De DNI;De CUIT;Para;Para DNI;Para CUIT;Categoria;Descripcion;Monto",
     );
     // Sofía no tiene CUIT: su columna queda vacía y va el DNI.
     expect(txCsv).toContain(
-      "TRANSFER,Sofia Test,40.111.001,,Mateo Test,40.111.002,20-40111002-6,",
+      "TRANSFER;Sofia Test;40.111.001;;Mateo Test;40.111.002;20-40111002-6;",
     );
 
     const debtRes = await page.request.get("/api/export/debtors");
     expect(debtRes.status()).toBe(200);
     const debtCsv = await debtRes.text();
+    expect(debtCsv.startsWith("﻿")).toBe(true);
     expect(debtCsv).toContain(
-      "Alumno,DNI,CUIT,Email,Grupo,Concepto,Monto,Vencimiento",
+      "Alumno;DNI;CUIT;Email;Grupo;Concepto;Monto;Vencimiento",
     );
-    expect(debtCsv).toContain("Sofia Test,40.111.001,,");
+    expect(debtCsv).toContain("Sofia Test;40.111.001;;");
     expect(debtCsv).toContain("Deuda export");
   });
 

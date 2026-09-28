@@ -22,6 +22,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: { email: email.toLowerCase() },
         });
         if (!user) return null;
+        // La cuenta operativa de un banco no inicia sesión: la manejan los
+        // empleados desde su propio usuario.
+        if (user.role === "BANK") return null;
 
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;

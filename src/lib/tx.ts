@@ -12,6 +12,16 @@ export const TX_TYPE_LABELS: Record<string, string> = {
   FINE: "Multa",
   INTEREST: "Interés",
   SAVINGS: "Ahorro",
+  CARD_PURCHASE: "Compra con tarjeta",
+  CARD_PAYMENT: "Pago de tarjeta",
+  BANK_FUNDING: "Capitalización del banco",
+  LOAN_DISBURSEMENT: "Préstamo recibido",
+  LOAN_PAYMENT: "Cuota de préstamo",
+  CASH_DEPOSIT: "Depósito en efectivo",
+  CASH_WITHDRAWAL: "Extracción de efectivo",
+  CHEQUE_PAYMENT: "Cheque",
+  FIXED_DEPOSIT_OPEN: "Plazo fijo constituido",
+  FIXED_DEPOSIT_PAYOUT: "Plazo fijo cobrado",
 };
 
 type Party = {
@@ -46,7 +56,8 @@ export function toTxView(tx: TxWithUsers, userId: string): TxView {
   const other = incoming ? tx.sender : tx.receiver;
 
   let counterparty: string;
-  if (tx.type === "ISSUANCE") counterparty = "Banco Central";
+  if (tx.type === "ISSUANCE" || tx.type === "BANK_FUNDING")
+    counterparty = "Banco Central";
   else counterparty = other?.name ?? "Sistema";
 
   const acc = tx.accrual;

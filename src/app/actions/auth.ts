@@ -3,6 +3,7 @@
 import { AuthError } from "next-auth";
 import { signIn, signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { homeFor } from "@/lib/session";
 
 export type LoginState = { error: string } | null;
 
@@ -19,7 +20,7 @@ export async function login(
     where: { email },
     select: { role: true },
   });
-  const redirectTo = user?.role === "ADMIN" ? "/admin" : "/dashboard";
+  const redirectTo = homeFor(user?.role);
 
   try {
     await signIn("credentials", { email, password, redirectTo });

@@ -1,6 +1,6 @@
 import { FileSpreadsheet } from "lucide-react";
 import { NavLink } from "@/components/NavProgress";
-import { requireAdminSession } from "@/lib/session";
+import { requireAdminAreaSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { StudentsManager } from "./StudentsManager";
 
@@ -10,7 +10,11 @@ export default async function StudentsPage({
   // `?grupo=<id>` llega desde las tarjetas de /admin/groups.
   searchParams: Promise<{ grupo?: string }>;
 }) {
-  await requireAdminSession();
+  // Las dos profes administran alumnos: corregir un DNI mal tipeado o
+  // blanquear una contraseña no puede depender de que esté la otra. Lo único
+  // reservado a la de tercero es crear cuentas de profe.
+  const me = await requireAdminAreaSession();
+  const canCreateStaff = me.role === "ADMIN";
   const { grupo } = await searchParams;
 
   const [students, groups] = await Promise.all([
@@ -45,6 +49,8 @@ export default async function StudentsPage({
             Creá y administrá las cuentas de tus alumnos.
           </p>
         </div>
+        {/* Importar la lista del curso lo pueden hacer las dos profes, aunque
+            la de quinto no edite las cuentas una por una. */}
         <NavLink
           href="/admin/students/import"
           className="inline-flex h-11 items-center gap-2 rounded-xl bg-raised2 px-5 text-sm font-medium text-ink transition-colors hover:bg-raised3"
@@ -57,6 +63,7 @@ export default async function StudentsPage({
         students={rows}
         groups={groupOpts}
         initialGroupId={grupo ?? null}
+        canCreateStaff={canCreateStaff}
       />
     </div>
   );

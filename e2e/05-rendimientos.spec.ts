@@ -55,7 +55,11 @@ test.describe("Rendimientos", () => {
     await page.getByRole("button", { name: "Guardar plazo" }).click();
 
     await expectMainContains(page, "Plazo de 60 días al 150% TNA guardado");
-    const term = await db.depositTerm.findUniqueOrThrow({ where: { days: 60 } });
+    // Los plazos del Banco Central son los que tienen bankId en null: `days`
+    // dejó de ser único al sumarse las pizarras de cada banco.
+    const term = await db.depositTerm.findFirstOrThrow({
+      where: { bankId: null, days: 60 },
+    });
     expect(Number(term.tnaPct)).toBe(150);
     expect(term.active).toBe(true);
   });

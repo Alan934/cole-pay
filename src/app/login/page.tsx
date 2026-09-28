@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { homeFor } from "@/lib/session";
 import { LogoWordmark } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LoginForm } from "./LoginForm";
@@ -15,7 +16,7 @@ export default async function LoginPage() {
       select: { id: true },
     });
     if (exists) {
-      redirect(session.user.role === "ADMIN" ? "/admin" : "/dashboard");
+      redirect(homeFor(session.user.role));
     }
   }
 

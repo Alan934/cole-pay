@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { readSheet } from "read-excel-file/node";
 import { prisma } from "@/lib/prisma";
-import { requireAdminSession } from "@/lib/session";
+import { requireAdminAreaSession } from "@/lib/session";
 import {
   parseStudentsSheet,
   ImportParseError,
@@ -128,7 +128,9 @@ export async function importStudents(
   _prev: ImportState | null,
   formData: FormData,
 ): Promise<ImportState> {
-  await requireAdminSession();
+  // Importan las dos profes: la de tercero arma sus cursos y la de quinto
+  // carga los suyos sin depender de nadie.
+  await requireAdminAreaSession();
 
   const mode = String(formData.get("mode") || "preview");
   const groupId = String(formData.get("groupId") || "");

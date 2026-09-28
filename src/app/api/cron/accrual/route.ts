@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { accrueInterest } from "@/lib/accrual";
 import { applyInflation } from "@/lib/inflation";
 import { runRecurring } from "@/lib/recurring";
+import { runCardCycle } from "@/lib/cards";
 
 /**
  * Corrida diaria automática.
@@ -12,7 +13,9 @@ import { runRecurring } from "@/lib/recurring";
  * recurrentes vencidos.
  *
  * El orden importa: primero se ajustan los precios y después se emiten los
- * cobros, así el alquiler de hoy sale al precio de hoy.
+ * cobros, así el alquiler de hoy sale al precio de hoy. Al final corre el
+ * ciclo de las tarjetas: marca los resúmenes vencidos y cierra los períodos
+ * que llegaron a su fecha de cierre.
  *
  * Es seguro que se ejecute de más: los tres pasos reclaman su período antes
  * de tocar dinero, así que un reintento no paga ni cobra dos veces.
@@ -45,6 +48,7 @@ export async function GET(req: NextRequest) {
     const interest = await accrueInterest({ trigger: "CRON" });
     const inflation = await applyInflation({ trigger: "CRON" });
     const recurring = await runRecurring({ trigger: "CRON" });
+    const cards = await runCardCycle();
 
     return NextResponse.json({
       ok: true,
@@ -52,6 +56,7 @@ export async function GET(req: NextRequest) {
       interest,
       inflation,
       recurring,
+      cards,
     });
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);

@@ -34,6 +34,13 @@ export const authConfig = {
       const path = nextUrl.pathname;
 
       const isAdminArea = path.startsWith("/admin");
+      // Secciones del panel que también maneja la profe de quinto: los bancos,
+      // las tarjetas y la lista de alumnos (esta última, sólo de consulta).
+      const isBankAdminArea =
+        path.startsWith("/admin/banks") ||
+        path.startsWith("/admin/cards") ||
+        path.startsWith("/admin/students");
+      const isBankArea = path.startsWith("/bank");
       const isStudentArea =
         path.startsWith("/dashboard") ||
         path.startsWith("/transfer") ||
@@ -43,11 +50,22 @@ export const authConfig = {
         path.startsWith("/notifications") ||
         path.startsWith("/goals") ||
         path.startsWith("/deposits") ||
+        path.startsWith("/cards") ||
+        path.startsWith("/loans") ||
         path.startsWith("/request") ||
         path.startsWith("/rendimientos");
 
       if (isAdminArea) {
+        if (isBankAdminArea) {
+          return isLoggedIn && (role === "ADMIN" || role === "BANK_ADMIN");
+        }
         return isLoggedIn && role === "ADMIN";
+      }
+      if (isBankArea) {
+        return (
+          isLoggedIn &&
+          (role === "BANK_EMPLOYEE" || role === "BANK_ADMIN" || role === "ADMIN")
+        );
       }
       if (isStudentArea) {
         return isLoggedIn;

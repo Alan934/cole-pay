@@ -5,6 +5,8 @@ import { useFormStatus } from "react-dom";
 import { Check, AlertCircle } from "lucide-react";
 import { payInvoice, type ActionResult } from "@/app/actions/student";
 import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Input";
+import type { PayCard } from "@/app/(student)/transfer/TransferForm";
 
 function Inner() {
   const { pending } = useFormStatus();
@@ -15,12 +17,25 @@ function Inner() {
   );
 }
 
-export function PayButton({ invoiceId }: { invoiceId: string }) {
+export function PayButton({
+  invoiceId,
+  amount,
+  cards = [],
+}: {
+  invoiceId: string;
+  amount: number;
+  /** Tarjetas activas del alumno; si no tiene, sólo se paga con saldo. */
+  cards?: PayCard[];
+}) {
   const [state, formAction] = useActionState<ActionResult | null, FormData>(
     payInvoice,
     null,
   );
   const [flash, setFlash] = useState<string | null>(null);
+  // "wallet" o el id de una tarjeta.
+  const [method, setMethod] = useState("wallet");
+  // Sólo se ofrecen las tarjetas a las que les entra esta cuenta.
+  const usable = cards.filter((c) => c.available >= amount);
 
   useEffect(() => {
     if (state && !state.ok) {
@@ -40,8 +55,29 @@ export function PayButton({ invoiceId }: { invoiceId: string }) {
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <form action={formAction}>
+      <form action={formAction} className="flex flex-col items-end gap-1.5">
         <input type="hidden" name="invoiceId" value={invoiceId} />
+        {method !== "wallet" && (
+          <>
+            <input type="hidden" name="method" value="card" />
+            <input type="hidden" name="cardId" value={method} />
+          </>
+        )}
+        {usable.length > 0 && (
+          <Select
+            aria-label="Con qué pagás esta cuenta"
+            value={method}
+            onChange={(e) => setMethod(e.target.value)}
+            className="h-9 w-auto max-w-[190px] px-2 text-xs"
+          >
+            <option value="wallet">Con mi saldo</option>
+            {usable.map((c) => (
+              <option key={c.id} value={c.id}>
+                Tarjeta ••••{c.last4}
+              </option>
+            ))}
+          </Select>
+        )}
         <Inner />
       </form>
       {flash && (

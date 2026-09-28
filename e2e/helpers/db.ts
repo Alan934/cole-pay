@@ -85,12 +85,23 @@ export async function resetSettings(
     create: { id: "singleton", ...data },
   });
 
+  // Ofertas del Banco Central (bankId null). El unique compuesto no se puede
+  // consultar con bankId en null, así que se buscan a mano.
   for (const t of TEST_TERMS) {
-    await db.depositTerm.upsert({
-      where: { days: t.days },
-      update: { tnaPct: D(t.tnaPct), active: true },
-      create: { days: t.days, tnaPct: D(t.tnaPct) },
+    const existing = await db.depositTerm.findFirst({
+      where: { bankId: null, days: t.days },
+      select: { id: true },
     });
+    if (existing) {
+      await db.depositTerm.update({
+        where: { id: existing.id },
+        data: { tnaPct: D(t.tnaPct), active: true },
+      });
+    } else {
+      await db.depositTerm.create({
+        data: { days: t.days, tnaPct: D(t.tnaPct) },
+      });
+    }
   }
 }
 

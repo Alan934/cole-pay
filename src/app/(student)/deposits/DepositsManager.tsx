@@ -11,10 +11,10 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import {
-  createDeposit,
+  openDeposit,
   withdrawDeposit,
   breakDeposit,
-} from "@/app/actions/features";
+} from "@/app/actions/deposits";
 import type { ActionResult } from "@/app/actions/student";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Input, Label, Select } from "@/components/ui/Input";
@@ -25,6 +25,7 @@ import { breakdown, DAYS_IN_YEAR } from "@/lib/interest";
 
 export type DepositView = {
   id: string;
+  bankName: string | null;
   principal: number;
   tnaPct: number;
   termDays: number;
@@ -36,7 +37,15 @@ export type DepositView = {
   estimatedPayout: number;
 };
 
-export type TermOption = { days: number; tnaPct: number };
+/** Un plazo de la pizarra de un banco. */
+export type TermOption = { id: string; days: number; tnaPct: number };
+
+/** La oferta completa de un banco, para comparar antes de elegir. */
+export type BankOffer = {
+  id: string;
+  name: string;
+  terms: TermOption[];
+};
 
 function Feedback({ state }: { state: ActionResult | null }) {
   if (!state) return null;
@@ -65,18 +74,18 @@ function SubmitBtn({
 export function DepositsManager({
   deposits,
   balance,
-  terms,
+  offers,
 }: {
   deposits: DepositView[];
   balance: number;
-  terms: TermOption[];
+  offers: BankOffer[];
 }) {
   const active = deposits.filter((d) => d.status === "ACTIVE");
   const done = deposits.filter((d) => d.status !== "ACTIVE");
 
   return (
     <div className="flex flex-col gap-5">
-      <CreateDeposit balance={balance} terms={terms} />
+      <CreateDeposit balance={balance} offers={offers} />
 
       {active.length > 0 && (
         <section className="flex flex-col gap-3">
@@ -110,18 +119,19 @@ export function DepositsManager({
 
 function CreateDeposit({
   balance,
-  terms,
+  offers,
 }: {
   balance: number;
-  terms: TermOption[];
+  offers: BankOffer[];
 }) {
   const [state, formAction] = useActionState<ActionResult | null, FormData>(
-    createDeposit,
+    openDeposit,
     null,
   );
   const ref = useRef<HTMLFormElement>(null);
   const [principal, setPrincipal] = useState("");
-  const [termDays, setTermDays] = useState(terms[0]?.days ?? 0);
+  const [bankId, setBankId] = useState(offers[0]?.id ?? "");
+  const [termId, setTermId] = useState(offers[0]?.terms[0]?.id ?? "");
 
   useEffect(() => {
     if (state?.ok) {
@@ -130,7 +140,18 @@ function CreateDeposit({
     }
   }, [state]);
 
-  const term = terms.find((t) => t.days === termDays) ?? terms[0];
+  const bank = offers.find((b) => b.id === bankId) ?? offers[0];
+  // Al cambiar de banco, el plazo elegido puede no estar en su pizarra: en ese
+  // caso cae al primero. Se deriva en vez de guardarse para que el select
+  // nunca quede mostrando un plazo de la pizarra anterior.
+  const term = bank?.terms.find((t) => t.id === termId) ?? bank?.terms[0];
+
+  // La mejor tasa de la plaza, para que se note cuando no es la elegida.
+  const bestTna = useMemo(
+    () => Math.max(0, ...offers.flatMap((b) => b.terms.map((t) => t.tnaPct))),
+    [offers],
+  );
+
   // Vista previa en vivo: el alumno ve la cuenta antes de confirmar.
   const preview = useMemo(() => {
     const p = Number(principal);
@@ -138,12 +159,12 @@ function CreateDeposit({
     return breakdown(p, term.tnaPct, term.days);
   }, [principal, term]);
 
-  if (terms.length === 0) {
+  if (offers.length === 0 || !bank) {
     return (
       <Card className="flex flex-col items-center gap-2 py-8 text-center text-ink/50">
         <Landmark className="h-7 w-7" />
         <p className="text-sm">
-          El banco no está ofreciendo plazos fijos en este momento.
+          Ningún banco está tomando plazos fijos en este momento.
         </p>
       </Card>
     );
@@ -156,10 +177,28 @@ function CreateDeposit({
         <CardTitle className="text-ink/80">Nuevo plazo fijo</CardTitle>
       </div>
       <p className="mb-3 text-sm text-ink/50">
-        Inmovilizás tu dinero por un plazo y al vencer cobrás más gracias al
-        interés. Si lo rompés antes, perdés el interés.
+        Le prestás tu plata a un banco por un plazo y al vencer cobrás más
+        gracias al interés. Cada banco pone su propia tasa: conviene comparar.
+        Si lo rompés antes, perdés el interés.
       </p>
       <form ref={ref} action={formAction} className="flex flex-col gap-3">
+        <div>
+          <Label htmlFor="d-bank">Banco</Label>
+          <Select
+            id="d-bank"
+            name="bankId"
+            value={bankId}
+            onChange={(e) => setBankId(e.target.value)}
+          >
+            {offers.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name} · hasta{" "}
+                {Math.max(...b.terms.map((t) => t.tnaPct))}% TNA
+              </option>
+            ))}
+          </Select>
+        </div>
+
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <Label htmlFor="d-principal">Monto a invertir</Label>
@@ -185,12 +224,12 @@ function CreateDeposit({
             <Label htmlFor="d-term">Plazo</Label>
             <Select
               id="d-term"
-              name="termDays"
-              value={termDays}
-              onChange={(e) => setTermDays(Number(e.target.value))}
+              name="termId"
+              value={term?.id ?? ""}
+              onChange={(e) => setTermId(e.target.value)}
             >
-              {terms.map((o) => (
-                <option key={o.days} value={o.days}>
+              {bank.terms.map((o) => (
+                <option key={o.id} value={o.id}>
                   {o.days} días · {o.tnaPct}% TNA
                 </option>
               ))}
@@ -228,6 +267,12 @@ function CreateDeposit({
           </div>
         )}
 
+        {term && term.tnaPct < bestTna && (
+          <p className="text-xs text-warning">
+            Ojo: hay {bestTna}% TNA en la plaza y estás eligiendo {term.tnaPct}%.
+          </p>
+        )}
+
         <p className="text-xs text-ink/40">Disponible: {formatMoney(balance)}</p>
         <Feedback state={state} />
         <div>
@@ -256,6 +301,7 @@ function DepositCard({ d }: { d: DepositView }) {
           <div>
             <p className="font-semibold">{formatMoney(d.principal)}</p>
             <p className="text-xs text-ink/40">
+              {d.bankName ? `${d.bankName} · ` : ""}
               {d.tnaPct}% TNA · {d.termDays} días · {statusLabel}
             </p>
           </div>

@@ -12,7 +12,10 @@ export default async function AdminYieldsPage() {
 
   const [settings, terms, runs, interestAgg, topEarners] = await Promise.all([
     getSettingsView(),
-    prisma.depositTerm.findMany({ orderBy: { days: "asc" } }),
+    prisma.depositTerm.findMany({
+      where: { bankId: null },
+      orderBy: { days: "asc" },
+    }),
     prisma.interestRun.findMany({ orderBy: { runAt: "desc" }, take: 12 }),
     prisma.transaction.aggregate({
       where: { type: "INTEREST" },

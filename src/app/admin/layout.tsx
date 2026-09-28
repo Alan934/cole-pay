@@ -1,4 +1,4 @@
-import { requireAdminSession } from "@/lib/session";
+import { requireAdminAreaSession } from "@/lib/session";
 import { Logo } from "@/components/Logo";
 import { LogoutButton } from "@/components/LogoutButton";
 import { BackButton } from "@/components/BackButton";
@@ -14,7 +14,10 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   // Sólo necesitamos nombre y rol: ambos vienen en el JWT, sin ir a la base.
-  const admin = await requireAdminSession();
+  // La profe de quinto entra al mismo panel pero con menos secciones; cada
+  // página de adentro vuelve a chequear el rol.
+  const admin = await requireAdminAreaSession();
+  const isBankAdmin = admin.role === "BANK_ADMIN";
 
   return (
     <NavProgressProvider>
@@ -24,9 +27,11 @@ export default async function AdminLayout({
           <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:px-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <BackButton home="/admin" />
+                <BackButton home={isBankAdmin ? "/admin/banks" : "/admin"} />
                 <Logo size="sm" />
-                <Badge tone="violet">Admin</Badge>
+                <Badge tone="violet">
+                  {isBankAdmin ? "Bancos" : "Admin"}
+                </Badge>
               </div>
               <div className="flex items-center gap-2">
                 <span className="hidden text-sm text-ink/50 sm:inline">
@@ -36,7 +41,7 @@ export default async function AdminLayout({
                 <LogoutButton />
               </div>
             </div>
-            <AdminNav />
+            <AdminNav role={admin.role} />
           </div>
         </header>
 

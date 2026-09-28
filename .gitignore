@@ -17,3 +17,11 @@ next-env.d.ts
 /playwright-report
 /blob-report
 /playwright/.cache
+
+# Backups de datos (no van al repo)
+/backups
+
+# Capturas de las guías (se regeneran con los specs zz-*)
+/quintoshots
+/guiashots
+/tpshots

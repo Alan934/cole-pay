@@ -22,6 +22,7 @@ export default async function AdminDashboard() {
     circulationAgg,
     pendingAgg,
     students,
+    groups,
     recentTx,
   ] = await Promise.all([
     prisma.user.count({ where: { role: "STUDENT" } }),
@@ -38,6 +39,14 @@ export default async function AdminDashboard() {
       select: { id: true, name: true, group: { select: { name: true } } },
       orderBy: { name: "asc" },
     }),
+    prisma.group.findMany({
+      select: {
+        id: true,
+        name: true,
+        _count: { select: { users: { where: { role: "STUDENT" } } } },
+      },
+      orderBy: { name: "asc" },
+    }),
     prisma.transaction.findMany({
       include: { sender: true, receiver: true },
       orderBy: { timestamp: "desc" },
@@ -52,6 +61,11 @@ export default async function AdminDashboard() {
     id: s.id,
     name: s.name,
     group: s.group?.name ?? null,
+  }));
+  const groupOptions = groups.map((g) => ({
+    id: g.id,
+    name: g.name,
+    students: g._count.users,
   }));
 
   return (
@@ -109,15 +123,13 @@ export default async function AdminDashboard() {
         <Card>
           <div className="mb-3 flex items-center gap-2">
             <Wallet className="h-5 w-5 text-accent" />
-            <CardTitle className="text-ink/80">
-              Cargar saldo a un alumno
-            </CardTitle>
+            <CardTitle className="text-ink/80">Cargar saldo</CardTitle>
           </div>
           <p className="mb-4 text-sm text-ink/50">
-            Transferí desde el banco hacia un alumno (simula la entrega de
-            efectivo físico).
+            Transferí desde el banco hacia un alumno, o dale el mismo capital
+            inicial a un curso entero (simula la entrega de efectivo físico).
           </p>
-          <DepositForm students={studentOptions} />
+          <DepositForm students={studentOptions} groups={groupOptions} />
         </Card>
 
         {/* Premios y multas */}

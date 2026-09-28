@@ -298,13 +298,46 @@ test.describe("Flujo del alumno", () => {
 
   /* -------------------------------- Plazo fijo ---------------------------- */
 
+  /**
+   * Los plazos fijos ahora los toma un banco de quinto, cada uno con su
+   * pizarra. Para que el interés dé un número fijo, se deja una sola oferta:
+   * Banco del Sol a 30 días al 100% TNA. Al haber una sola, el formulario
+   * viene con el banco y el plazo ya elegidos.
+   */
+  async function unicaOfertaDePlazoFijo() {
+    await db.depositTerm.deleteMany({ where: { NOT: { bankId: null } } });
+
+    const cuenta = await db.user.create({
+      data: {
+        name: "Banco de Prueba",
+        email: "banco.test@banco.colepay.local",
+        passwordHash: "x",
+        role: "BANK",
+        wallet: {
+          create: {
+            cvu: "9999999999999999999991",
+            alias: "banco.test.plazo",
+            balance: 100_000,
+          },
+        },
+      },
+    });
+    const banco = await db.bank.create({
+      data: { name: "Banco de Prueba", slug: "banco-test", accountId: cuenta.id },
+    });
+    await db.depositTerm.create({
+      data: { bankId: banco.id, days: 30, tnaPct: 100 },
+    });
+    return banco;
+  }
+
   test("crea un plazo fijo y no puede cobrarlo antes del vencimiento", async ({
     page,
   }) => {
+    await unicaOfertaDePlazoFijo();
     await loginStudent(page, USERS.sofia);
     await page.goto("/deposits");
     await page.getByLabel("Monto a invertir").fill("1000");
-    await page.getByLabel("Plazo").selectOption("30");
     await page.getByRole("button", { name: "Crear plazo fijo" }).click();
 
     await expectMainContains(page, "Cobrás al vencer");
@@ -348,10 +381,10 @@ test.describe("Flujo del alumno", () => {
   test("puede romper un plazo fijo antes de tiempo y pierde el interés", async ({
     page,
   }) => {
+    await unicaOfertaDePlazoFijo();
     await loginStudent(page, USERS.sofia);
     await page.goto("/deposits");
     await page.getByLabel("Monto a invertir").fill("1000");
-    await page.getByLabel("Plazo").selectOption("30");
     await page.getByRole("button", { name: "Crear plazo fijo" }).click();
     await expect.poll(async () => balanceOf(USERS.sofia), { timeout: 15_000 }).toBe(4000);
 
