@@ -160,7 +160,8 @@ export default async function BanksPage() {
           </div>
           <p className="mb-4 text-sm text-ink/50">
             Los empleados del banco no tienen billetera propia: entran
-            directamente al mostrador de su banco.
+            directamente al mostrador de su banco. Si son varios, cargalos de
+            una vez desde Alumnos.
           </p>
           <CreateBankUserForm
             banks={banks.map((b) => ({ id: b.id, name: b.name }))}
@@ -170,7 +171,8 @@ export default async function BanksPage() {
 
       <p className="flex items-center justify-center gap-2 text-xs text-ink/35">
         <Users className="h-3.5 w-3.5" />
-        Los alumnos de tercero se administran desde la sección Alumnos.
+        Las cuentas de los alumnos de quinto se administran desde la sección
+        Alumnos.
       </p>
     </div>
   );

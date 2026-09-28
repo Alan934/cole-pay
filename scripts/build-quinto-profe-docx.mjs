@@ -248,17 +248,23 @@ children.push(
 /* --- 10. Los alumnos --- */
 children.push(
   new Paragraph({ children: [new PageBreak()] }),
-  sectionTitle(10, "Los alumnos de tercero", "Alumnos"),
-  p("Son los clientes de los bancos. Podés corregirles los datos y blanquearles la contraseña."),
+  sectionTitle(10, "Tus alumnos de quinto", "Alumnos"),
+  p("Son los que atienden los mostradores. Acá ves sólo a los tuyos: podés corregirles los datos y blanquearles la contraseña."),
   ...shot("p11-alumnos", [
     "Buscar por nombre, DNI o email",
-    "Filtrar por curso",
-    "El saldo de cada cliente",
+    "Filtrar por banco",
+    "En qué banco trabaja cada uno",
     "Corregir datos o blanquear la clave",
   ], { wide: true }),
+  p("Los creás de a uno con el formulario de la izquierda, siempre eligiendo el banco donde van a trabajar."),
+  ...shot("p12-alta", [
+    "Nombre, correo y DNI",
+    "Con esta clave entra la primera vez",
+    "El banco que va a atender",
+  ]),
   callout([
-    ["Las cuentas de profe las crea la profe de tercero. ", { bold: true, color: GREEN }],
-    ["Vos creás alumnos y usuarios de quinto; también podés importar el curso desde Excel."],
+    ["Si son muchos, importá la lista. ", { bold: true, color: GREEN }],
+    ["Con “Importar desde Excel” cargás todo el curso de una vez y elegís a qué banco van; la contraseña inicial de cada uno es su DNI."],
   ]),
 );
 

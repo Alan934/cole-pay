@@ -5,9 +5,20 @@ import { prisma } from "@/lib/prisma";
 import { ImportStudentsForm } from "./ImportStudentsForm";
 
 export default async function ImportStudentsPage() {
-  await requireAdminAreaSession();
+  const me = await requireAdminAreaSession();
+  // La profe de quinto importa a sus alumnos dentro de un banco; la de
+  // tercero, dentro de un curso.
+  const isBankAdmin = me.role === "BANK_ADMIN";
 
-  const groups = await prisma.group.findMany({ orderBy: { name: "asc" } });
+  const targets = isBankAdmin
+    ? await prisma.bank.findMany({
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      })
+    : await prisma.group.findMany({
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      });
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
@@ -21,12 +32,15 @@ export default async function ImportStudentsPage() {
         </NavLink>
         <h1 className="text-2xl font-bold">Importar alumnos</h1>
         <p className="text-sm text-ink/50">
-          Subí la lista del curso en Excel y creá todas las cuentas de una vez.
+          {isBankAdmin
+            ? "Subí la lista de quinto en Excel y creá todas las cuentas del banco de una vez."
+            : "Subí la lista del curso en Excel y creá todas las cuentas de una vez."}
         </p>
       </div>
 
       <ImportStudentsForm
-        groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+        targets={targets}
+        scope={isBankAdmin ? "bank" : "group"}
       />
     </div>
   );

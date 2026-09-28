@@ -342,65 +342,19 @@ test.describe("Flujo del admin (Banco Central)", () => {
     await page.waitForURL("**/dashboard");
   });
 
-  test("la profe de quinto corrige un alumno y le blanquea la contraseña", async ({
+  test("la profe de quinto no ve a los alumnos de tercero", async ({
     page,
   }) => {
     await createBankAdmin();
     await login(page, BANK_ADMIN_EMAIL, PASSWORD_ADMIN, "**/admin/banks");
 
     await page.goto("/admin/students");
-    await page
-      .locator("tr", { hasText: "Mateo Test" })
-      .getByRole("button", { name: "Editar" })
-      .click();
-    const dialog = page.locator("form", {
-      has: page.getByLabel("Nueva contraseña (opcional)"),
-    });
-    await dialog.getByLabel("Nombre").fill("Mateo Corregido");
-    await dialog.getByLabel("Nueva contraseña (opcional)").fill("clavedequinto");
-    await dialog.getByRole("button", { name: "Guardar cambios" }).click();
 
-    await expect
-      .poll(async () => (await db.user.findUnique({ where: { email: USERS.mateo } }))?.name, {
-        timeout: 15_000,
-      })
-      .toBe("Mateo Corregido");
-
-    // Y el alumno entra con la clave nueva.
-    await page.context().clearCookies();
-    await page.goto("/login");
-    await page.getByLabel("Email").fill(USERS.mateo);
-    await page.getByLabel("Contraseña", { exact: true }).fill("clavedequinto");
-    await page.getByRole("button", { name: "Ingresar" }).click();
-    await page.waitForURL("**/dashboard");
-  });
-
-  test("la profe de quinto no puede crear otra profe", async ({ page }) => {
-    await createBankAdmin();
-    await login(page, BANK_ADMIN_EMAIL, PASSWORD_ADMIN, "**/admin/banks");
-    await page.goto("/admin/students");
-
-    // El alta no le ofrece el rol: sólo da de alta alumnos.
-    const form = page.locator("form", { has: page.getByLabel("Email (login)") });
-    await expect(form.getByLabel("Rol")).toHaveCount(0);
-
-    // Y aunque lo mande a mano, el servidor lo rechaza.
-    await form.getByLabel("Nombre").fill("Profe Colada");
-    await form.getByLabel("Email (login)").fill("colada@test.colepay");
-    await form.getByLabel("Contraseña", { exact: true }).fill("clave1234");
-    // El formulario manda `role=STUDENT` en un input oculto: lo pisamos para
-    // simular a alguien tocando el HTML.
-    await form.evaluate((el: HTMLFormElement) => {
-      const hidden = el.querySelector<HTMLInputElement>('input[name="role"]');
-      if (!hidden) throw new Error("no está el input oculto de rol");
-      hidden.value = "ADMIN";
-    });
-    await form.getByRole("button", { name: "Crear alumno" }).click();
-
-    await expectMainContains(page, /Sólo podés dar de alta alumnos/i);
-    expect(
-      await db.user.count({ where: { email: "colada@test.colepay" } }),
-    ).toBe(0);
+    // Su lista es la de quinto: los clientes del banco son de la otra profe.
+    await expectMainContains(page, "Alumnos de quinto");
+    await expect(page.locator("main")).not.toContainText("Mateo Test");
+    await expect(page.getByLabel("Filtrar por grupo")).toHaveCount(0);
+    await expect(page.getByLabel("Filtrar por banco")).toBeVisible();
   });
 
   test("crea un grupo y rechaza nombres duplicados", async ({ page }) => {

@@ -255,8 +255,9 @@ export async function createUser(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  // Las dos profes dan de alta alumnos; sólo la de tercero (ADMIN) puede
-  // además crear otras profes.
+  // Cada profe da de alta a sus propios alumnos: la de tercero, los clientes
+  // del banco (y, si hace falta, otra profe); la de quinto, los alumnos que
+  // atienden el mostrador, siempre dentro de un banco.
   const me = await requireAdminAreaSession();
   const parsed = createUserSchema.safeParse({
     name: formData.get("name"),
@@ -271,11 +272,26 @@ export async function createUser(
   if (!parsed.success)
     return { ok: false, error: parsed.error.issues[0].message };
 
-  const { name, email, dni, cuit, password, groupId, role, bankId } =
-    parsed.data;
+  const { name, email, dni, cuit, password, groupId, bankId } = parsed.data;
+  // La profe de quinto sólo crea alumnos de quinto, pase lo que pase por el
+  // formulario.
+  const role = me.role === "BANK_ADMIN" ? "BANK_EMPLOYEE" : parsed.data.role;
 
-  if (me.role !== "ADMIN" && role !== "STUDENT")
-    return { ok: false, error: "Sólo podés dar de alta alumnos." };
+  if (me.role !== "ADMIN" && role !== "BANK_EMPLOYEE")
+    return { ok: false, error: "Sólo podés dar de alta alumnos de quinto." };
+
+  // Un alumno de quinto sin banco no puede trabajar: el banco es obligatorio.
+  const wantsBank = bankId && bankId !== "__none__" ? bankId : null;
+  let bank: { id: string; name: string } | null = null;
+  if (role === "BANK_EMPLOYEE") {
+    if (!wantsBank)
+      return { ok: false, error: "Elegí el banco donde va a trabajar." };
+    bank = await prisma.bank.findUnique({
+      where: { id: wantsBank },
+      select: { id: true, name: true },
+    });
+    if (!bank) return { ok: false, error: "No se encontró el banco elegido." };
+  }
 
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) return { ok: false, error: "Ya existe un usuario con ese email." };
@@ -305,11 +321,12 @@ export async function createUser(
       cuit: cuit ?? null,
       passwordHash,
       role,
-      groupId: groupId && groupId !== "__none__" ? groupId : null,
-      bankId:
-        role === "BANK_EMPLOYEE" && bankId && bankId !== "__none__"
-          ? bankId
-          : null,
+      // El alumno de quinto pertenece a un banco, no a un curso.
+      groupId:
+        role === "BANK_EMPLOYEE" || !groupId || groupId === "__none__"
+          ? null
+          : groupId,
+      bankId: bank?.id ?? null,
       ...(hasWallet
         ? {
             wallet: {
@@ -325,6 +342,11 @@ export async function createUser(
   });
 
   revalidatePath("/admin/students");
+  if (bank) {
+    revalidatePath("/admin/banks");
+    revalidatePath(`/admin/banks/${bank.id}`);
+    return { ok: true, message: `${name} fue creado y asignado a ${bank.name}.` };
+  }
   return { ok: true, message: `${name} fue creado correctamente.` };
 }
 
@@ -341,26 +363,23 @@ export async function editUser(
     dni: formData.get("dni") || undefined,
     cuit: formData.get("cuit") || undefined,
     groupId: formData.get("groupId") || undefined,
+    bankId: formData.get("bankId") || undefined,
     password: formData.get("password") || undefined,
   });
   if (!parsed.success)
     return { ok: false, error: parsed.error.issues[0].message };
 
-  const { userId, name, email, dni, cuit, groupId, password } = parsed.data;
+  const { userId, name, email, dni, cuit, groupId, bankId, password } =
+    parsed.data;
 
   // Corregir un dato mal cargado o blanquear una contraseña lo hacen las dos
-  // profes, pero la de quinto sólo sobre alumnos y su propia gente del banco:
-  // que no pueda cambiarle la clave a la otra profe.
+  // profes, cada una sobre sus alumnos: la de quinto, sólo sobre los suyos.
   const target = await prisma.user.findUnique({
     where: { id: userId },
     select: { role: true },
   });
   if (!target) return { ok: false, error: "No se encontró el usuario." };
-  if (
-    me.role !== "ADMIN" &&
-    target.role !== "STUDENT" &&
-    target.role !== "BANK_EMPLOYEE"
-  )
+  if (me.role !== "ADMIN" && target.role !== "BANK_EMPLOYEE")
     return { ok: false, error: "No podés editar esa cuenta." };
 
   const emailOwner = await prisma.user.findUnique({ where: { email } });
@@ -384,17 +403,39 @@ export async function editUser(
     // Campo vacío = se borra el dato cargado.
     dni: dni ?? null,
     cuit: cuit ?? null,
-    group:
+  };
+  // Cada formulario manda sólo el campo que le corresponde: el de tercero el
+  // curso, el de quinto el banco. Lo que no viene, no se toca.
+  if (formData.has("groupId")) {
+    data.group =
       groupId && groupId !== "__none__"
         ? { connect: { id: groupId } }
-        : { disconnect: true },
-  };
+        : { disconnect: true };
+  }
+  let newBankId: string | null = null;
+  if (formData.has("bankId")) {
+    if (target.role !== "BANK_EMPLOYEE")
+      return { ok: false, error: "Sólo los alumnos de quinto trabajan en un banco." };
+    if (!bankId || bankId === "__none__")
+      return { ok: false, error: "Elegí el banco donde va a trabajar." };
+    const bank = await prisma.bank.findUnique({
+      where: { id: bankId },
+      select: { id: true },
+    });
+    if (!bank) return { ok: false, error: "No se encontró el banco elegido." };
+    newBankId = bank.id;
+    data.bank = { connect: { id: bank.id } };
+  }
   if (password && password.length >= 4) {
     data.passwordHash = await bcrypt.hash(password, 10);
   }
 
   await prisma.user.update({ where: { id: userId }, data });
   revalidatePath("/admin/students");
+  if (newBankId) {
+    revalidatePath("/admin/banks");
+    revalidatePath(`/admin/banks/${newBankId}`);
+  }
   return { ok: true, message: "Alumno actualizado." };
 }
 
