@@ -21,6 +21,7 @@ import {
 import {
   importStudents,
   type ImportRow,
+  type ImportScope,
   type ImportState,
 } from "@/app/actions/import";
 import { Card, CardTitle } from "@/components/ui/Card";
@@ -33,7 +34,46 @@ import { buildCsv } from "@/lib/csv";
 import { errorText, warningText } from "@/lib/import-students";
 import { formatCuit, formatDni } from "@/lib/identity";
 
-export type GroupOpt = { id: string; name: string };
+/** Curso (tercero) o banco (quinto): a dónde van los alumnos del archivo. */
+export type ImportTarget = { id: string; name: string };
+
+/** Los textos que cambian entre una importación y la otra. */
+const COPY: Record<
+  ImportScope,
+  {
+    noun: string;
+    field: string;
+    placeholder: string;
+    search: string;
+    empty: string;
+    hint: string;
+    missing: string;
+    login: string;
+  }
+> = {
+  group: {
+    noun: "curso",
+    field: "Curso destino",
+    placeholder: "Elegí el curso…",
+    search: "Buscar curso…",
+    empty: "No se encontró ningún curso.",
+    hint: "Todos los alumnos del archivo quedan en este curso.",
+    missing:
+      "Todavía no creaste ningún curso. Creá uno en Grupos antes de importar.",
+    login: "entra con su correo personal",
+  },
+  bank: {
+    noun: "banco",
+    field: "Banco destino",
+    placeholder: "Elegí el banco…",
+    search: "Buscar banco…",
+    empty: "No se encontró ningún banco.",
+    hint: "Todos los alumnos del archivo quedan atendiendo este banco.",
+    missing:
+      "Todavía no creaste ningún banco. Creá uno en Bancos antes de importar.",
+    login: "entra al mostrador de su banco con su correo",
+  },
+};
 
 /**
  * No hay `<form action={...}>` acá a propósito.
@@ -44,13 +84,20 @@ export type GroupOpt = { id: string; name: string };
  * la confirmación se iba sin planilla. El archivo y el curso viven en estado
  * de React y el FormData se arma a mano en cada envío.
  */
-export function ImportStudentsForm({ groups }: { groups: GroupOpt[] }) {
+export function ImportStudentsForm({
+  targets,
+  scope,
+}: {
+  targets: ImportTarget[];
+  scope: ImportScope;
+}) {
   const [state, formAction, pending] = useActionState<
     ImportState | null,
     FormData
   >(importStudents, null);
 
-  const [groupId, setGroupId] = useState("");
+  const copy = COPY[scope];
+  const [targetId, setTargetId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -59,23 +106,24 @@ export function ImportStudentsForm({ groups }: { groups: GroupOpt[] }) {
   useEffect(() => {
     if (state?.kind === "done") {
       setFile(null);
-      setGroupId("");
+      setTargetId("");
       if (fileRef.current) fileRef.current.value = "";
     }
   }, [state]);
 
-  const groupOptions = useMemo(
-    () => groups.map((g) => ({ value: g.id, label: g.name })),
-    [groups],
+  const targetOptions = useMemo(
+    () => targets.map((t) => ({ value: t.id, label: t.name })),
+    [targets],
   );
 
   function submit(mode: "preview" | "confirm") {
     const fd = new FormData();
     fd.set("mode", mode);
-    fd.set("groupId", groupId);
+    fd.set("scope", scope);
+    fd.set("targetId", targetId);
     if (file) fd.set("file", file);
     if (mode === "confirm" && state?.kind === "preview") {
-      fd.set("previewGroupId", state.groupId);
+      fd.set("previewTargetId", state.targetId);
       fd.set("previewFileName", state.fileName);
     }
     // Sin transición, `pending` no se actualiza y los botones no muestran que
@@ -83,7 +131,7 @@ export function ImportStudentsForm({ groups }: { groups: GroupOpt[] }) {
     startTransition(() => formAction(fd));
   }
 
-  const canPreview = groupId !== "" && file !== null && !pending;
+  const canPreview = targetId !== "" && file !== null && !pending;
 
   return (
     <div className="flex flex-col gap-6">
@@ -93,28 +141,23 @@ export function ImportStudentsForm({ groups }: { groups: GroupOpt[] }) {
           <CardTitle className="text-ink/80">Planilla de alumnos</CardTitle>
         </div>
 
-        {groups.length === 0 ? (
-          <FormFeedback
-            ok={false}
-            msg="Todavía no creaste ningún curso. Creá uno en Grupos antes de importar."
-          />
+        {targets.length === 0 ? (
+          <FormFeedback ok={false} msg={copy.missing} />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <Label htmlFor="i-group">Curso destino</Label>
+              <Label htmlFor="i-target">{copy.field}</Label>
               <SearchSelect
-                id="i-group"
-                name="groupId"
-                options={groupOptions}
-                defaultValue={groupId}
-                onChange={setGroupId}
-                placeholder="Elegí el curso…"
-                searchPlaceholder="Buscar curso…"
-                emptyMessage="No se encontró ningún curso."
+                id="i-target"
+                name="targetId"
+                options={targetOptions}
+                defaultValue={targetId}
+                onChange={setTargetId}
+                placeholder={copy.placeholder}
+                searchPlaceholder={copy.search}
+                emptyMessage={copy.empty}
               />
-              <p className="mt-1.5 text-xs text-ink/40">
-                Todos los alumnos del archivo quedan en este curso.
-              </p>
+              <p className="mt-1.5 text-xs text-ink/40">{copy.hint}</p>
             </div>
 
             <div>
@@ -156,13 +199,13 @@ export function ImportStudentsForm({ groups }: { groups: GroupOpt[] }) {
             </p>
             <p>
               La contraseña inicial de cada alumno es su{" "}
-              <b className="text-ink/80">DNI</b>, y entra con su correo
-              personal. Conviene que la cambien desde Ajustes.
+              <b className="text-ink/80">DNI</b>, y {copy.login}. Conviene que
+              la cambien apenas entren.
             </p>
           </div>
         </div>
 
-        {groups.length > 0 && (
+        {targets.length > 0 && (
           <div className="mt-4 flex justify-end">
             <Button
               type="button"
@@ -205,7 +248,8 @@ function PreviewPanel({
   pending: boolean;
   onConfirm: () => void;
 }) {
-  const { valid, invalid, groupName, fileName } = state;
+  const { valid, invalid, scope, targetName, fileName } = state;
+  const noun = COPY[scope].noun;
 
   return (
     <Card className="flex flex-col gap-4">
@@ -215,7 +259,7 @@ function PreviewPanel({
             Previsualización
           </CardTitle>
           <p className="text-xs text-ink/40">
-            {fileName} → curso <b className="text-ink/70">{groupName}</b>.
+            {fileName} → {noun} <b className="text-ink/70">{targetName}</b>.
             Todavía no se creó nada.
           </p>
         </div>
@@ -241,7 +285,7 @@ function PreviewPanel({
           <Button type="button" disabled={pending} onClick={onConfirm}>
             {pending
               ? "Creando alumnos…"
-              : `Crear ${valid.length} alumno${valid.length === 1 ? "" : "s"} en ${groupName}`}
+              : `Crear ${valid.length} alumno${valid.length === 1 ? "" : "s"} en ${targetName}`}
           </Button>
         )}
       </div>
@@ -359,7 +403,7 @@ function DonePanel({
     );
     const a = document.createElement("a");
     a.href = url;
-    a.download = `colepay-accesos-${state.groupName}.csv`;
+    a.download = `colepay-accesos-${state.targetName}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -373,7 +417,7 @@ function DonePanel({
         <div>
           <CardTitle className="text-base text-ink/90">
             Se crearon {state.created} alumno
-            {state.created === 1 ? "" : "s"} en {state.groupName}
+            {state.created === 1 ? "" : "s"} en {state.targetName}
           </CardTitle>
           <p className="text-sm text-ink/50">
             Cada uno entra con su correo y su DNI como contraseña.

@@ -316,12 +316,17 @@ export async function createBankUser(
     if (owner) return { ok: false, error: "Ya existe un usuario con ese CUIT." };
   }
 
-  const bank =
-    role === "BANK_EMPLOYEE" && bankId && bankId !== "__none__"
-      ? await prisma.bank.findUnique({ where: { id: bankId } })
-      : null;
-  if (role === "BANK_EMPLOYEE" && bankId && bankId !== "__none__" && !bank) {
-    return { ok: false, error: "No se encontró el banco elegido." };
+  // El alumno de quinto se crea siempre dentro de un banco: es el mostrador
+  // que va a atender.
+  let bank: { id: string; name: string } | null = null;
+  if (role === "BANK_EMPLOYEE") {
+    if (!bankId || bankId === "__none__")
+      return { ok: false, error: "Elegí el banco donde va a trabajar." };
+    bank = await prisma.bank.findUnique({
+      where: { id: bankId },
+      select: { id: true, name: true },
+    });
+    if (!bank) return { ok: false, error: "No se encontró el banco elegido." };
   }
 
   await prisma.user.create({

@@ -167,6 +167,8 @@ export const editUserSchema = z.object({
   dni: dniField,
   cuit: cuitField,
   groupId: z.string().optional(),
+  /** Banco donde trabaja, cuando se edita a un alumno de quinto. */
+  bankId: z.string().optional(),
   password: z.string().optional(),
 });
 

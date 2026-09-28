@@ -90,8 +90,15 @@ export function CreateBankUserForm({
         {role === "BANK_EMPLOYEE" && (
           <div>
             <Label htmlFor="bu-bank">Banco</Label>
-            <Select id="bu-bank" name="bankId" defaultValue={defaultBankId ?? "__none__"}>
-              <option value="__none__">Sin asignar por ahora</option>
+            <Select
+              id="bu-bank"
+              name="bankId"
+              defaultValue={defaultBankId ?? ""}
+              required
+            >
+              <option value="" disabled>
+                Elegí el banco…
+              </option>
               {banks.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}

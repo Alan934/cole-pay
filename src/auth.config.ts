@@ -35,7 +35,7 @@ export const authConfig = {
 
       const isAdminArea = path.startsWith("/admin");
       // Secciones del panel que también maneja la profe de quinto: los bancos,
-      // las tarjetas y la lista de alumnos (esta última, sólo de consulta).
+      // las tarjetas y la lista de alumnos (donde ve sólo los de quinto).
       const isBankAdminArea =
         path.startsWith("/admin/banks") ||
         path.startsWith("/admin/cards") ||

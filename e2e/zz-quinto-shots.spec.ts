@@ -445,15 +445,22 @@ test.describe("capturas anotadas (guías de quinto)", () => {
       { label: "Podés resolverla vos", at: superApp.getByRole("button", { name: "Aprobar y emitir" }) },
     ]);
 
-    /* --- 10. Los alumnos de tercero --- */
+    /* --- 10. Tus alumnos de quinto --- */
     await page.goto("/admin/students");
     await settle(page);
     const listCol = page.locator("div.grid > div.flex-col").last();
     await capture(page, "p11-alumnos", listCol, [
       { label: "Buscar por nombre, DNI o email", at: page.getByLabel("Buscar alumno") },
-      { label: "Filtrar por curso", at: page.getByLabel("Filtrar por grupo") },
-      { label: "El saldo de cada cliente", at: listCol.locator("table") },
+      { label: "Filtrar por banco", at: page.getByLabel("Filtrar por banco") },
+      { label: "En qué banco trabaja cada uno", at: listCol.locator("table") },
       { label: "Corregir datos o blanquear la clave", at: listCol.getByRole("button", { name: "Editar" }).first() },
+    ]);
+
+    const altaForm = page.locator("form", { has: page.getByLabel("Email (login)") });
+    await capture(page, "p12-alta", altaForm, [
+      { label: "Nombre, correo y DNI", at: altaForm.getByLabel("Nombre") },
+      { label: "Con esta clave entra la primera vez", at: altaForm.getByLabel("Contraseña", { exact: true }) },
+      { label: "El banco que va a atender", at: altaForm.getByLabel("Banco") },
     ]);
 
     writeFileSync(`${OUT}/marcas.json`, JSON.stringify(shots, null, 2));

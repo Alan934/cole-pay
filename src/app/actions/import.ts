@@ -23,11 +23,18 @@ export type ImportRow = Pick<
   "rowNumber" | "name" | "rawName" | "email" | "dni" | "cuit" | "errors" | "warnings"
 >;
 
+/**
+ * A dónde van los alumnos del archivo: la profe de tercero los importa a un
+ * curso y la de quinto, a un banco.
+ */
+export type ImportScope = "group" | "bank";
+
 /** Previsualización: todavía no se creó nada. */
 export type ImportPreview = {
   kind: "preview";
-  groupId: string;
-  groupName: string;
+  scope: ImportScope;
+  targetId: string;
+  targetName: string;
   fileName: string;
   valid: ImportRow[];
   invalid: ImportRow[];
@@ -36,7 +43,8 @@ export type ImportPreview = {
 /** Importación efectuada. `credentials` es la lista para repartir en clase. */
 export type ImportDone = {
   kind: "done";
-  groupName: string;
+  scope: ImportScope;
+  targetName: string;
   created: number;
   skipped: number;
   credentials: { name: string; email: string; password: string }[];
@@ -128,31 +136,47 @@ export async function importStudents(
   _prev: ImportState | null,
   formData: FormData,
 ): Promise<ImportState> {
-  // Importan las dos profes: la de tercero arma sus cursos y la de quinto
-  // carga los suyos sin depender de nadie.
-  await requireAdminAreaSession();
+  // Importan las dos profes, cada una a lo suyo: la de tercero arma sus
+  // cursos y la de quinto carga los equipos de sus bancos.
+  const me = await requireAdminAreaSession();
 
   const mode = String(formData.get("mode") || "preview");
-  const groupId = String(formData.get("groupId") || "");
-  if (!groupId || groupId === "__none__")
-    return fail("Elegí el curso al que van a quedar asociados los alumnos.");
+  const scope: ImportScope =
+    String(formData.get("scope") || "group") === "bank" ? "bank" : "group";
+  if (scope === "group" && me.role !== "ADMIN")
+    return fail("Tus alumnos se importan a un banco, no a un curso.");
 
-  const group = await prisma.group.findUnique({ where: { id: groupId } });
-  if (!group)
-    return fail("Ese curso ya no existe. Actualizá la página y elegí otro.");
+  const targetId = String(formData.get("targetId") || "");
+  const noun = scope === "bank" ? "banco" : "curso";
+  if (!targetId || targetId === "__none__")
+    return fail(`Elegí el ${noun} al que van a quedar asociados los alumnos.`);
+
+  // Curso o banco, según quién importe: el resto del proceso es el mismo.
+  const target =
+    scope === "bank"
+      ? await prisma.bank.findUnique({
+          where: { id: targetId },
+          select: { id: true, name: true },
+        })
+      : await prisma.group.findUnique({
+          where: { id: targetId },
+          select: { id: true, name: true },
+        });
+  if (!target)
+    return fail(`Ese ${noun} ya no existe. Actualizá la página y elegí otro.`);
 
   const file = formData.get("file");
   if (!(file instanceof File)) return fail("Elegí un archivo .xlsx.");
 
-  // El botón de confirmar viaja con el curso y el archivo que se mostraron en
-  // la previsualización. Si cambiaron, se importaría algo distinto de lo que
-  // la profe revisó, así que se corta acá.
+  // El botón de confirmar viaja con el destino y el archivo que se mostraron
+  // en la previsualización. Si cambiaron, se importaría algo distinto de lo
+  // que la profe revisó, así que se corta acá.
   if (mode === "confirm") {
-    const previewGroupId = String(formData.get("previewGroupId") || "");
+    const previewTargetId = String(formData.get("previewTargetId") || "");
     const previewFileName = String(formData.get("previewFileName") || "");
-    if (previewGroupId !== groupId)
+    if (previewTargetId !== targetId)
       return fail(
-        "Cambiaste el curso después de previsualizar. Previsualizá de nuevo antes de crear.",
+        `Cambiaste el ${noun} después de previsualizar. Previsualizá de nuevo antes de crear.`,
       );
     if (previewFileName !== file.name)
       return fail(
@@ -172,8 +196,9 @@ export async function importStudents(
       );
     return {
       kind: "preview",
-      groupId,
-      groupName: group.name,
+      scope,
+      targetId,
+      targetName: target.name,
       fileName: file.name,
       valid,
       invalid,
@@ -189,9 +214,12 @@ export async function importStudents(
     valid.map((r) => bcrypt.hash(r.dni, 10)),
   );
 
-  const wallets = await prisma.wallet.findMany({
-    select: { alias: true, cvu: true },
-  });
+  // Los alumnos de quinto atienden el mostrador: no llevan billetera propia,
+  // así que para ellos no hace falta alias ni CVU.
+  const needsWallet = scope === "group";
+  const wallets = needsWallet
+    ? await prisma.wallet.findMany({ select: { alias: true, cvu: true } })
+    : [];
   const takenAliases = new Set(wallets.map((w) => w.alias));
   const takenCvus = new Set(wallets.map((w) => w.cvu));
 
@@ -201,8 +229,8 @@ export async function importStudents(
     dni: row.dni,
     cuit: row.cuit,
     passwordHash: passwordHashes[i],
-    alias: uniqueAlias(row.name, takenAliases),
-    cvu: uniqueCvu(takenCvus),
+    alias: needsWallet ? uniqueAlias(row.name, takenAliases) : "",
+    cvu: needsWallet ? uniqueCvu(takenCvus) : "",
   }));
 
   try {
@@ -216,11 +244,16 @@ export async function importStudents(
               dni: u.dni,
               cuit: u.cuit,
               passwordHash: u.passwordHash,
-              role: "STUDENT",
-              groupId,
-              wallet: {
-                create: { cvu: u.cvu, alias: u.alias, balance: 0 },
-              },
+              role: needsWallet ? "STUDENT" : "BANK_EMPLOYEE",
+              groupId: needsWallet ? target.id : null,
+              bankId: needsWallet ? null : target.id,
+              ...(needsWallet
+                ? {
+                    wallet: {
+                      create: { cvu: u.cvu, alias: u.alias, balance: 0 },
+                    },
+                  }
+                : {}),
             },
           });
         }
@@ -242,12 +275,18 @@ export async function importStudents(
   }
 
   revalidatePath("/admin/students");
-  revalidatePath("/admin/groups");
-  revalidatePath("/admin");
+  if (scope === "bank") {
+    revalidatePath("/admin/banks");
+    revalidatePath(`/admin/banks/${target.id}`);
+  } else {
+    revalidatePath("/admin/groups");
+    revalidatePath("/admin");
+  }
 
   return {
     kind: "done",
-    groupName: group.name,
+    scope,
+    targetName: target.name,
     created: toCreate.length,
     skipped: invalid.length,
     credentials: valid.map((r) => ({
