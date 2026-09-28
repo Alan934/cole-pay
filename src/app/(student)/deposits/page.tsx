@@ -2,18 +2,19 @@ import Link from "next/link";
 import { GraduationCap } from "lucide-react";
 import { requireStudent } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { getActiveTerms } from "@/lib/settings";
+import { getDepositOffers } from "@/lib/settings";
 import { simpleInterest } from "@/lib/interest";
 import { DepositsManager } from "./DepositsManager";
 
 export default async function DepositsPage() {
   const me = await requireStudent();
-  const [deposits, terms] = await Promise.all([
+  const [deposits, offers] = await Promise.all([
     prisma.fixedDeposit.findMany({
       where: { userId: me.id },
+      include: { bank: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
     }),
-    getActiveTerms(),
+    getDepositOffers(),
   ]);
 
   const now = new Date();
@@ -23,6 +24,7 @@ export default async function DepositsPage() {
     const interest = simpleInterest(principal, tnaPct, d.termDays);
     return {
       id: d.id,
+      bankName: d.bank?.name ?? null,
       principal,
       tnaPct,
       termDays: d.termDays,
@@ -35,9 +37,14 @@ export default async function DepositsPage() {
     };
   });
 
-  const termOptions = terms.map((t) => ({
-    days: t.days,
-    tnaPct: Number(t.tnaPct),
+  const bankOffers = offers.map((b) => ({
+    id: b.id,
+    name: b.name,
+    terms: b.depositTerms.map((t) => ({
+      id: t.id,
+      days: t.days,
+      tnaPct: Number(t.tnaPct),
+    })),
   }));
   const balance = Number(me.wallet?.balance ?? 0);
 
@@ -46,7 +53,7 @@ export default async function DepositsPage() {
       <div>
         <h1 className="text-xl font-bold">Plazo fijo 🏦</h1>
         <p className="text-sm text-ink/50">
-          Inmovilizás tu plata un tiempo y el banco te paga por eso.
+          Le prestás tu plata a un banco un tiempo y él te paga por eso.
         </p>
       </div>
 
@@ -64,7 +71,7 @@ export default async function DepositsPage() {
       <DepositsManager
         deposits={views}
         balance={balance}
-        terms={termOptions}
+        offers={bankOffers}
       />
     </div>
   );

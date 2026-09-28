@@ -1,13 +1,21 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Home, ArrowLeftRight, Receipt, Bell, Settings } from "lucide-react";
+import {
+  Home,
+  ArrowLeftRight,
+  CreditCard,
+  Receipt,
+  Bell,
+  Settings,
+} from "lucide-react";
 import { NavLink, NavIcon } from "@/components/NavProgress";
 import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/dashboard", label: "Inicio", icon: Home },
   { href: "/transfer", label: "Enviar", icon: ArrowLeftRight },
+  { href: "/cards", label: "Tarjeta", icon: CreditCard },
   { href: "/bills", label: "Pagar", icon: Receipt },
   { href: "/notifications", label: "Avisos", icon: Bell },
   { href: "/settings", label: "Ajustes", icon: Settings },

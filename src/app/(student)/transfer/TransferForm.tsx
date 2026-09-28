@@ -1,7 +1,15 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { AlertCircle, Check, Send, User, X } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  CreditCard,
+  Send,
+  User,
+  Wallet,
+  X,
+} from "lucide-react";
 import {
   lookupDestination,
   transferMoney,
@@ -14,6 +22,15 @@ import { Button } from "@/components/ui/Button";
 import { formatMoney } from "@/lib/utils";
 import { SPENDING_CATEGORIES } from "@/lib/validations";
 
+/** Tarjeta con la que el alumno puede pagar, tal como la ve el formulario. */
+export type PayCard = {
+  id: string;
+  brandLabel: string;
+  last4: string;
+  bankName: string;
+  available: number;
+};
+
 /** Destinatario ya verificado + los datos del formulario listos para enviar. */
 type PendingTransfer = {
   data: FormData;
@@ -21,14 +38,20 @@ type PendingTransfer = {
   amount: number;
   description: string;
   category: string;
+  /** Con qué se paga: el saldo de la billetera o una tarjeta de crédito. */
+  method: "wallet" | "card";
+  cardLabel: string | null;
 };
 
 export function TransferForm({
   balance,
   prefill,
+  cards = [],
 }: {
   balance: number;
   prefill?: { to?: string; amount?: string; desc?: string; req?: string };
+  /** Tarjetas activas del alumno. Si no tiene, sólo se paga con saldo. */
+  cards?: PayCard[];
 }) {
   const [state, formAction, isPending] = useActionState<
     ActionResult | null,
@@ -39,6 +62,12 @@ export function TransferForm({
     useState<PendingTransfer | null>(null);
   const [checking, setChecking] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [method, setMethod] = useState<"wallet" | "card">("wallet");
+  const [cardId, setCardId] = useState(cards[0]?.id ?? "");
+
+  const card = cards.find((c) => c.id === cardId) ?? cards[0] ?? null;
+  const payingWithCard = method === "card" && card !== null;
+  const limit = payingWithCard ? card.available : balance;
 
   useEffect(() => {
     if (state?.ok) {
@@ -63,7 +92,16 @@ export function TransferForm({
       setLocalError("El monto debe ser mayor a 0");
       return;
     }
-    if (amount > balance) {
+    if (payingWithCard) {
+      if (amount > card.available) {
+        setLocalError(
+          "No te alcanza el límite disponible de la tarjeta. Pagá el resumen para liberar crédito.",
+        );
+        return;
+      }
+      data.set("method", "card");
+      data.set("cardId", card.id);
+    } else if (amount > balance) {
       setLocalError("Saldo insuficiente para esta transferencia.");
       return;
     }
@@ -83,6 +121,10 @@ export function TransferForm({
       amount,
       description: String(data.get("description") ?? "").trim(),
       category: String(data.get("category") ?? "General"),
+      method: payingWithCard ? "card" : "wallet",
+      cardLabel: payingWithCard
+        ? `${card.brandLabel} ••••${card.last4} — ${card.bankName}`
+        : null,
     });
   }
 
@@ -101,11 +143,13 @@ export function TransferForm({
           </div>
         </div>
         <div>
-          <p className="text-lg font-semibold">¡Transferencia exitosa!</p>
+          <p className="text-lg font-semibold">
+            {method === "card" ? "¡Compra aprobada!" : "¡Transferencia exitosa!"}
+          </p>
           <p className="mt-1 text-sm text-ink/50">{state.message}</p>
         </div>
         <Button variant="secondary" onClick={() => setShowSuccess(false)}>
-          Hacer otra transferencia
+          Hacer otro pago
         </Button>
       </Card>
     );
@@ -119,6 +163,50 @@ export function TransferForm({
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {prefill?.req && (
             <input type="hidden" name="req" value={prefill.req} />
+          )}
+
+          {cards.length > 0 && (
+            <div>
+              <Label htmlFor="method">Pagar con</Label>
+              <div className="grid grid-cols-2 gap-2" id="method">
+                <MethodButton
+                  active={method === "wallet"}
+                  onClick={() => setMethod("wallet")}
+                  icon={<Wallet className="h-4 w-4" />}
+                  title="Mi saldo"
+                  sub={formatMoney(balance)}
+                  label="Pagar con el saldo de la billetera"
+                />
+                <MethodButton
+                  active={method === "card"}
+                  onClick={() => setMethod("card")}
+                  icon={<CreditCard className="h-4 w-4" />}
+                  title="Tarjeta"
+                  sub={`${formatMoney(card?.available ?? 0)} libres`}
+                  label="Pagar con la tarjeta de crédito"
+                />
+              </div>
+              {payingWithCard && cards.length > 1 && (
+                <Select
+                  aria-label="Elegí la tarjeta"
+                  className="mt-2"
+                  value={cardId}
+                  onChange={(e) => setCardId(e.target.value)}
+                >
+                  {cards.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.brandLabel} ••••{c.last4} — {c.bankName}
+                    </option>
+                  ))}
+                </Select>
+              )}
+              {payingWithCard && (
+                <p className="mt-2 rounded-xl border border-violet/25 bg-violet/10 px-3 py-2 text-xs text-ink/60">
+                  Pagás ahora con plata del banco. El consumo entra en tu próximo
+                  resumen y lo tenés que pagar antes del vencimiento.
+                </p>
+              )}
+            </div>
           )}
           <div>
             <Label htmlFor="destination">CVU o Alias del destinatario</Label>
@@ -151,7 +239,8 @@ export function TransferForm({
               />
             </div>
             <p className="mt-1.5 px-1 text-xs text-ink/40">
-              Disponible: {formatMoney(balance)}
+              {payingWithCard ? "Límite disponible: " : "Disponible: "}
+              {formatMoney(limit)}
             </p>
           </div>
 
@@ -221,7 +310,7 @@ function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const { dest, amount, description, category } = transfer;
+  const { dest, amount, description, category, cardLabel } = transfer;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -246,7 +335,7 @@ function ConfirmDialog({
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h3 id="confirm-transfer-title" className="text-lg font-bold">
-              Confirmá la transferencia
+              {cardLabel ? "Confirmá la compra" : "Confirmá la transferencia"}
             </h3>
             <p className="mt-0.5 text-sm text-ink/50">
               Revisá que los datos sean correctos. Una vez enviada no se puede
@@ -286,6 +375,7 @@ function ConfirmDialog({
             <Row label="Alias" value={dest.alias} />
             <Row label="CVU" value={dest.cvu} />
             <Row label="Categoría" value={category} />
+            <Row label="Pagás con" value={cardLabel ?? "Mi saldo"} />
             {description && <Row label="Mensaje" value={description} />}
           </dl>
         </div>
@@ -311,6 +401,43 @@ function ConfirmDialog({
         </div>
       </Card>
     </div>
+  );
+}
+
+/** Botón del selector "pagar con saldo / con tarjeta". */
+function MethodButton({
+  active,
+  onClick,
+  icon,
+  title,
+  sub,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  title: string;
+  sub: string;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      aria-label={label}
+      className={
+        active
+          ? "flex flex-col gap-0.5 rounded-xl border border-accent bg-accent/10 px-3 py-2.5 text-left transition-colors"
+          : "flex flex-col gap-0.5 rounded-xl border border-raised2 bg-panel/80 px-3 py-2.5 text-left transition-colors hover:border-raised3"
+      }
+    >
+      <span className="flex items-center gap-1.5 text-sm font-medium">
+        {icon}
+        {title}
+      </span>
+      <span className="text-xs text-ink/45">{sub}</span>
+    </button>
   );
 }
 

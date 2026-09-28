@@ -115,15 +115,26 @@ export async function saveDepositTerm(
     return { ok: false, error: parsed.error.issues[0].message };
 
   await getSettings();
-  await prisma.depositTerm.upsert({
-    where: { days: parsed.data.days },
-    update: { tnaPct: D(parsed.data.tnaPct), active: true },
-    create: {
-      days: parsed.data.days,
-      tnaPct: D(parsed.data.tnaPct),
-      settingsId: SETTINGS_ID,
-    },
+  // El unique compuesto ([bankId, days]) no se puede consultar con bankId en
+  // null, así que la oferta del Banco Central se busca a mano.
+  const existing = await prisma.depositTerm.findFirst({
+    where: { bankId: null, days: parsed.data.days },
+    select: { id: true },
   });
+  if (existing) {
+    await prisma.depositTerm.update({
+      where: { id: existing.id },
+      data: { tnaPct: D(parsed.data.tnaPct), active: true },
+    });
+  } else {
+    await prisma.depositTerm.create({
+      data: {
+        days: parsed.data.days,
+        tnaPct: D(parsed.data.tnaPct),
+        settingsId: SETTINGS_ID,
+      },
+    });
+  }
 
   revalidateEverything();
   return {

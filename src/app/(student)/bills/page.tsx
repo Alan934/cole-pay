@@ -1,6 +1,7 @@
 import { CheckCircle2, Receipt } from "lucide-react";
 import { requireStudent } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { getPayableCards } from "@/lib/cards";
 import { formatMoney, formatDate } from "@/lib/utils";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -10,7 +11,8 @@ export default async function BillsPage() {
   const me = await requireStudent();
   const balance = Number(me.wallet?.balance ?? 0);
 
-  const [pending, paid] = await Promise.all([
+  const [cards, pending, paid] = await Promise.all([
+    getPayableCards(me.id),
     prisma.invoice.findMany({
       where: { studentId: me.id, status: "PENDING" },
       orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
@@ -27,7 +29,9 @@ export default async function BillsPage() {
       <div>
         <h1 className="text-xl font-bold">Cuentas a pagar</h1>
         <p className="text-sm text-ink/50">
-          Servicios y cobros asignados por tus profes.
+          {cards.length > 0
+            ? "Servicios y cobros de tus profes. Podés pagarlos con tu saldo o con la tarjeta."
+            : "Servicios y cobros asignados por tus profes."}
         </p>
       </div>
 
@@ -40,7 +44,8 @@ export default async function BillsPage() {
         ) : (
           pending.map((inv) => {
             const amount = Number(inv.amount);
-            const canPay = balance >= amount;
+            const canPay =
+              balance >= amount || cards.some((c) => c.available >= amount);
             return (
               <Card key={inv.id} className="flex items-center gap-4">
                 <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-warning/15 text-warning">
@@ -56,11 +61,17 @@ export default async function BillsPage() {
                   )}
                   {!canPay && (
                     <p className="mt-0.5 text-xs text-danger">
-                      Saldo insuficiente
+                      {cards.length > 0
+                        ? "No te alcanza ni el saldo ni el límite de la tarjeta"
+                        : "Saldo insuficiente"}
                     </p>
                   )}
                 </div>
-                <PayButton invoiceId={inv.id} />
+                <PayButton
+                  invoiceId={inv.id}
+                  amount={amount}
+                  cards={cards}
+                />
               </Card>
             );
           })

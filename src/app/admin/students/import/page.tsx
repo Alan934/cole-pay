@@ -1,11 +1,11 @@
 import { ArrowLeft } from "lucide-react";
 import { NavLink } from "@/components/NavProgress";
-import { requireAdminSession } from "@/lib/session";
+import { requireAdminAreaSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { ImportStudentsForm } from "./ImportStudentsForm";
 
 export default async function ImportStudentsPage() {
-  await requireAdminSession();
+  await requireAdminAreaSession();
 
   const groups = await prisma.group.findMany({ orderBy: { name: "asc" } });
 

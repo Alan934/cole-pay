@@ -1,15 +1,18 @@
 import Link from "next/link";
 import {
   ArrowLeftRight,
-  Receipt,
+  ChevronRight,
   Clock,
-  QrCode,
-  Target,
+  CreditCard,
+  FileSignature,
+  HandCoins,
   Landmark,
   PieChart,
+  QrCode,
+  Receipt,
+  Target,
   TrendingUp,
   Trophy,
-  ChevronRight,
 } from "lucide-react";
 import { requireStudent } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
@@ -27,8 +30,11 @@ import { Badge } from "@/components/ui/Badge";
 const QUICK_ACTIONS = [
   { href: "/transfer", label: "Enviar", sub: "Transferir", icon: ArrowLeftRight, tone: "bg-accent/15 text-accent" },
   { href: "/request", label: "Cobrar", sub: "QR / pedir", icon: QrCode, tone: "bg-violet/15 text-violet" },
+  { href: "/cards", label: "Tarjeta", sub: "Crédito", icon: CreditCard, tone: "bg-violet/15 text-violet" },
+  { href: "/loans", label: "Préstamo", sub: "Pedir plata", icon: HandCoins, tone: "bg-warning/15 text-warning" },
   { href: "/goals", label: "Metas", sub: "Ahorrar", icon: Target, tone: "bg-accent/15 text-accent" },
   { href: "/deposits", label: "Plazo fijo", sub: "Ganar interés", icon: Landmark, tone: "bg-violet/15 text-violet" },
+  { href: "/cheques", label: "Cheques", sub: "Pagar a plazo", icon: FileSignature, tone: "bg-warning/15 text-warning" },
 ];
 
 export default async function DashboardPage() {

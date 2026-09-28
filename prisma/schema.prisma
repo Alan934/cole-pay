@@ -15,8 +15,11 @@ datasource db {
 }
 
 enum Role {
-  ADMIN
-  STUDENT
+  ADMIN // profe de tercero: administra todo el sistema
+  BANK_ADMIN // profe de quinto: administra los bancos y supervisa el crédito
+  BANK_EMPLOYEE // alumno de quinto: atiende el mostrador de un banco
+  STUDENT // alumno de tercero: cliente del banco
+  BANK // cuenta operativa de un banco; no inicia sesión
 }
 
 enum InvoiceStatus {
@@ -34,6 +37,30 @@ enum TransactionType {
   FINE // multa/descuento del admin a un alumno
   INTEREST // interés pagado por el banco al vencer un plazo fijo
   SAVINGS // movimiento entre saldo y una meta de ahorro (apartar/retirar)
+  CARD_PURCHASE // consumo con tarjeta: el banco le paga al comercio
+  CARD_PAYMENT // el alumno paga el resumen de su tarjeta al banco
+  LOAN_DISBURSEMENT // el banco le desembolsa un préstamo al alumno
+  LOAN_PAYMENT // el alumno paga una cuota del préstamo
+  BANK_FUNDING // el Banco Central capitaliza a un banco de quinto año
+  CASH_DEPOSIT // el alumno lleva efectivo a la ventanilla y el banco se lo acredita
+  CASH_WITHDRAWAL // el alumno retira efectivo por ventanilla
+  CHEQUE_PAYMENT // el banco hace efectivo un cheque librado por otro alumno
+  FIXED_DEPOSIT_OPEN // el alumno constituye un plazo fijo en un banco
+  FIXED_DEPOSIT_PAYOUT // el banco le devuelve capital (+ interés) al vencer
+}
+
+// Vida de un cheque, desde que se libra hasta que se cobra o rebota.
+enum ChequeStatus {
+  ISSUED // librado y en manos del beneficiario, todavía sin cobrar
+  PAID // cobrado por ventanilla
+  BOUNCED // rechazado: el librador no tenía fondos
+  CANCELLED // anulado por el librador antes de que lo cobren
+}
+
+// Movimiento de efectivo por la ventanilla del banco.
+enum CashOperationKind {
+  DEPOSIT // el alumno entrega billetes y el banco se los acredita
+  WITHDRAWAL // el alumno se lleva billetes y el banco se los debita
 }
 
 enum GoalStatus {
@@ -65,6 +92,15 @@ enum NotificationType {
   NEW_INVOICE
   INVOICE_PAID
   INTEREST_PAID
+  CARD_APPLICATION // le llegó una solicitud al banco
+  CARD_APPROVED
+  CARD_REJECTED
+  CARD_PURCHASE
+  LOAN_APPLICATION // le llegó un pedido de préstamo al banco
+  LOAN_APPROVED
+  LOAN_REJECTED
+  STATEMENT_CLOSED
+  STATEMENT_DUE
   GENERIC
 }
 
@@ -92,26 +128,49 @@ model User {
   groupId String?
   group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
+  // Banco en el que trabaja (solo BANK_EMPLOYEE).
+  bankId String?
+  bank   Bank?   @relation("BankEmployees", fields: [bankId], references: [id], onDelete: SetNull)
+
+  // Banco del que esta cuenta es la billetera operativa (solo role BANK).
+  bankAccountOf Bank? @relation("BankAccount")
+
   wallet Wallet?
 
   // Relaciones de transacciones
   sentTransactions     Transaction[] @relation("SentTransactions")
   receivedTransactions Transaction[] @relation("ReceivedTransactions")
 
-  invoices      Invoice[]      @relation("StudentInvoices")
-  createdInvoices Invoice[]    @relation("AdminInvoices")
-  notifications Notification[]
+  invoices        Invoice[]      @relation("StudentInvoices")
+  createdInvoices Invoice[]      @relation("AdminInvoices")
+  notifications   Notification[]
 
-  savingsGoals    SavingsGoal[]
-  fixedDeposits   FixedDeposit[]
-  paymentRequests PaymentRequest[] @relation("RequestedBy")
-  paidRequests    PaymentRequest[] @relation("PaidBy")
+  savingsGoals     SavingsGoal[]
+  fixedDeposits    FixedDeposit[]
+  paymentRequests  PaymentRequest[]  @relation("RequestedBy")
+  paidRequests     PaymentRequest[]  @relation("PaidBy")
   recurringCharges RecurringCharge[] @relation("AdminRecurring")
   interestAccruals InterestAccrual[]
   quizAttempts     QuizAttempt[]
 
+  cardApplications     CardApplication[] @relation("CardApplicant")
+  reviewedApplications CardApplication[] @relation("CardReviewer")
+  loans                Loan[]            @relation("LoanBorrower")
+  reviewedLoans        Loan[]            @relation("LoanReviewer")
+  creditCards          CreditCard[]
+  issuedCards          CreditCard[]      @relation("CardIssuer")
+  cardSales            CardCharge[]      @relation("CardMerchant")
+
+  chequesDrawn      Cheque[]        @relation("ChequeDrawer")
+  chequesReceived   Cheque[]        @relation("ChequePayee")
+  chequesRegistered Cheque[]        @relation("ChequeRegisteredBy")
+  chequesPaid       Cheque[]        @relation("ChequePaidBy")
+  cashOperations    CashOperation[] @relation("CashCustomer")
+  cashOperated      CashOperation[] @relation("CashTeller")
+
   @@index([groupId])
   @@index([role])
+  @@index([bankId])
 }
 
 model Wallet {
@@ -153,9 +212,27 @@ model Transaction {
   // Vínculo opcional con el detalle del cálculo, si es un interés.
   accrual InterestAccrual?
 
+  // Vínculos opcionales con el mundo de las tarjetas y los préstamos.
+  cardCharge  CardCharge?  @relation("ChargeTransaction")
+  cardPayment CardPayment? @relation("PaymentTransaction")
+  loan        Loan?        @relation("LoanDisbursement")
+  loanPayment LoanPayment? @relation("LoanPaymentTransaction")
+
+  cheque         Cheque?        @relation("ChequeTransaction")
+  cashOperation  CashOperation? @relation("CashTransaction")
+  depositOpened  FixedDeposit?  @relation("DepositOpenTransaction")
+  depositPaidOut FixedDeposit?  @relation("DepositPayoutTransaction")
+
+  // Banco que intervino en el movimiento, aunque su caja no sea el emisor ni
+  // el receptor (depósitos de efectivo, cheques). Deja que el mostrador arme
+  // su historial completo con una sola consulta.
+  bankId String?
+  bank   Bank?   @relation("BankMovements", fields: [bankId], references: [id], onDelete: SetNull)
+
   @@index([senderId])
   @@index([receiverId])
   @@index([timestamp])
+  @@index([bankId])
 }
 
 // Servicio / cobro creado por un Admin hacia un alumno.
@@ -235,10 +312,25 @@ model FixedDeposit {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Banco que toma el depósito y paga el interés al vencer. Queda en null en
+  // los plazos fijos viejos, constituidos cuando los pagaba el Banco Central.
+  bankId String?
+  bank   Bank?   @relation(fields: [bankId], references: [id], onDelete: SetNull)
+
+  // Movimientos del libro mayor: la constitución y la devolución.
+  openTransactionId String?      @unique
+  openTransaction   Transaction? @relation("DepositOpenTransaction", fields: [openTransactionId], references: [id], onDelete: SetNull)
+
+  payoutTransactionId String?      @unique
+  payoutTransaction   Transaction? @relation("DepositPayoutTransaction", fields: [payoutTransactionId], references: [id], onDelete: SetNull)
+
   @@index([userId])
+  @@index([bankId, status])
 }
 
-/* ------------------------- Rendimientos e inflación ------------------------ */
+/**
+ * ------------------------- Rendimientos e inflación ------------------------
+ */
 
 // Configuración económica global del sistema. Fila única (id = "singleton").
 model BankSettings {
@@ -258,45 +350,55 @@ model BankSettings {
   lastAccrualAt DateTime?
 
   // --- Inflación ---
-  inflationEnabled  Boolean  @default(false)
-  monthlyInflationPct Decimal @default(0) @db.Decimal(6, 2)
+  inflationEnabled    Boolean   @default(false)
+  monthlyInflationPct Decimal   @default(0) @db.Decimal(6, 2)
   // Índice de precios: arranca en 100 y sube con cada ajuste.
-  priceIndex        Decimal  @default(100) @db.Decimal(14, 4)
-  lastInflationAt   DateTime?
+  priceIndex          Decimal   @default(100) @db.Decimal(14, 4)
+  lastInflationAt     DateTime?
 
   updatedAt DateTime @updatedAt
 
   terms DepositTerm[]
 }
 
-// Plazo de plazo fijo ofrecido por el banco. Lo administra el admin.
+/**
+ * Plazo de plazo fijo ofrecido en el sistema. Con `bankId` en null es una
+ * oferta del Banco Central (la que administra la profe desde
+ * /admin/rendimientos); con banco, es la pizarra de tasas de ese banco de
+ * quinto, que fija el mostrador y paga de su propia caja.
+ */
 model DepositTerm {
   id     String  @id @default(cuid())
-  days   Int     @unique
+  days   Int
   tnaPct Decimal @db.Decimal(6, 2)
   active Boolean @default(true)
 
   settingsId String       @default("singleton")
   settings   BankSettings @relation(fields: [settingsId], references: [id], onDelete: Cascade)
 
+  bankId String?
+  bank   Bank?   @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([bankId, days])
   @@index([active])
+  @@index([bankId, active])
 }
 
 // Una corrida de liquidación de intereses (auditoría para el admin).
 model InterestRun {
-  id       String   @id @default(cuid())
-  runAt    DateTime @default(now())
-  days     Int // días liquidados en esta corrida
-  periodEnd DateTime // hasta qué momento quedó liquidado
-  balanceTnaPct Decimal @db.Decimal(6, 2)
-  goalsTnaPct   Decimal @db.Decimal(6, 2)
-  totalPaid     Decimal @default(0) @db.Decimal(14, 2)
-  walletsCount  Int     @default(0)
+  id            String   @id @default(cuid())
+  runAt         DateTime @default(now())
+  days          Int // días liquidados en esta corrida
+  periodEnd     DateTime // hasta qué momento quedó liquidado
+  balanceTnaPct Decimal  @db.Decimal(6, 2)
+  goalsTnaPct   Decimal  @db.Decimal(6, 2)
+  totalPaid     Decimal  @default(0) @db.Decimal(14, 2)
+  walletsCount  Int      @default(0)
   // "CRON" (automática) o "MANUAL" (forzada desde el panel).
-  trigger  String   @default("CRON")
+  trigger       String   @default("CRON")
 
   accruals InterestAccrual[]
 
@@ -306,13 +408,13 @@ model InterestRun {
 // Detalle del interés acreditado a un alumno en una corrida.
 // Guarda los insumos del cálculo para poder mostrarle la fórmula al alumno.
 model InterestAccrual {
-  id       String        @id @default(cuid())
-  source   AccrualSource
-  base     Decimal       @db.Decimal(14, 2) // capital sobre el que se calculó
-  tnaPct   Decimal       @db.Decimal(6, 2)
-  days     Int
-  interest Decimal       @db.Decimal(14, 2)
-  createdAt DateTime     @default(now())
+  id        String        @id @default(cuid())
+  source    AccrualSource
+  base      Decimal       @db.Decimal(14, 2) // capital sobre el que se calculó
+  tnaPct    Decimal       @db.Decimal(6, 2)
+  days      Int
+  interest  Decimal       @db.Decimal(14, 2)
+  createdAt DateTime      @default(now())
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -329,11 +431,11 @@ model InterestAccrual {
 
 // Intento de un alumno en el quiz de rendimientos.
 model QuizAttempt {
-  id        String   @id @default(cuid())
+  id         String   @id @default(cuid())
   questionId String
-  correct   Boolean
-  answer    String
-  createdAt DateTime @default(now())
+  correct    Boolean
+  answer     String
+  createdAt  DateTime @default(now())
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -362,14 +464,14 @@ model PaymentRequest {
 
 // Cobro recurrente programado por el admin (genera Invoices periódicamente).
 model RecurringCharge {
-  id          String   @id @default(cuid())
-  description String
-  amount      Decimal  @db.Decimal(14, 2)
-  intervalDays Int     @default(7) // cada cuántos días se genera
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  nextRunAt   DateTime
-  lastRunAt   DateTime?
+  id           String    @id @default(cuid())
+  description  String
+  amount       Decimal   @db.Decimal(14, 2)
+  intervalDays Int       @default(7) // cada cuántos días se genera
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  nextRunAt    DateTime
+  lastRunAt    DateTime?
 
   groupId String?
   group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
@@ -378,4 +480,389 @@ model RecurringCharge {
   createdBy   User?   @relation("AdminRecurring", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([active])
+}
+
+/**
+ * --------------------------- Bancos y tarjetas ----------------------------
+ */
+// Los bancos los operan los alumnos de quinto año: reciben las solicitudes de
+// tarjeta de los alumnos de tercero, las aprueban, financian los consumos con
+// el saldo de su propia cuenta y después cobran los resúmenes.
+
+enum CardApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED // la dio de baja el propio alumno antes de que la revisaran
+}
+
+enum CardStatus {
+  ACTIVE
+  BLOCKED // suspendida por el banco: no puede consumir, sí pagar
+  CANCELLED
+}
+
+enum CardBrand {
+  VISA
+  MASTERCARD
+  COLEPAY
+}
+
+enum CardChargeKind {
+  PURCHASE // consumo en un comercio
+  INTEREST // interés por financiar saldo impago
+  FEE // cargo administrativo del banco
+}
+
+enum StatementStatus {
+  CLOSED // cerrado, esperando el pago
+  PAID
+  OVERDUE // venció sin pagarse del todo
+  ROLLED // su saldo impago pasó al resumen siguiente
+}
+
+// Un banco del juego. Tiene una cuenta propia (User con role BANK) para que
+// todos sus movimientos usen el mismo libro mayor que el resto del sistema.
+model Bank {
+  id     String  @id @default(cuid())
+  name   String  @unique // "Banco Progreso"
+  slug   String  @unique // identificador corto, para links
+  color  String  @default("#4f46e5") // color de las tarjetas que emite
+  active Boolean @default(true)
+
+  // Política de crédito por defecto (cada tarjeta guarda su propia copia).
+  defaultLimit   Decimal @default(0) @db.Decimal(14, 2)
+  monthlyRatePct Decimal @default(0) @db.Decimal(6, 2) // interés mensual por financiar
+  closingDay     Int     @default(25) // día del mes en que cierra el resumen
+  dueDays        Int     @default(10) // días entre el cierre y el vencimiento
+
+  // Política de préstamos.
+  loanRatePct   Decimal @default(0) @db.Decimal(6, 2) // interés mensual del préstamo
+  maxLoanAmount Decimal @default(0) @db.Decimal(14, 2) // tope que presta de una vez
+
+  // Comisión que cobra por hacer efectivo un cheque, en % del importe.
+  chequeFeePct Decimal @default(0) @db.Decimal(6, 2)
+
+  accountId String @unique
+  account   User   @relation("BankAccount", fields: [accountId], references: [id], onDelete: Cascade)
+
+  employees    User[]            @relation("BankEmployees")
+  applications CardApplication[]
+  cards        CreditCard[]
+  loans        Loan[]
+
+  cheques      Cheque[]
+  cashOps      CashOperation[]
+  deposits     FixedDeposit[]
+  depositTerms DepositTerm[]
+  movements    Transaction[]   @relation("BankMovements")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active])
+}
+
+// Solicitud de tarjeta que un alumno le manda a un banco.
+model CardApplication {
+  id             String                @id @default(cuid())
+  status         CardApplicationStatus @default(PENDING)
+  requestedLimit Decimal               @db.Decimal(14, 2)
+  monthlyIncome  Decimal?              @db.Decimal(14, 2) // ingreso declarado
+  purpose        String? // para qué la quiere
+  createdAt      DateTime              @default(now())
+  reviewedAt     DateTime?
+  reviewNote     String? // motivo del rechazo o comentario de la aprobación
+
+  applicantId String
+  applicant   User   @relation("CardApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
+
+  bankId String
+  bank   Bank   @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  reviewedById String?
+  reviewedBy   User?   @relation("CardReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  card CreditCard?
+
+  @@index([bankId, status])
+  @@index([applicantId])
+}
+
+// Tarjeta emitida. Los datos (número, vencimiento, código) los puede cargar el
+// banco a mano —para que coincidan con la tarjeta física del aula— o dejar que
+// el sistema los genere.
+model CreditCard {
+  id          String     @id @default(cuid())
+  brand       CardBrand  @default(VISA)
+  number      String     @unique // 16 dígitos, sin espacios
+  last4       String
+  holderName  String // como figura impreso en el plástico
+  expMonth    Int
+  expYear     Int
+  cvv         String // ficticio, 3 dígitos
+  creditLimit Decimal    @db.Decimal(14, 2)
+  status      CardStatus @default(ACTIVE)
+
+  // Copia de la política del banco al momento de emitirla.
+  closingDay     Int
+  dueDays        Int
+  monthlyRatePct Decimal @db.Decimal(6, 2)
+
+  issuedAt     DateTime  @default(now())
+  // Hasta qué fecha ya se facturaron los consumos de esta tarjeta.
+  lastClosedAt DateTime?
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  bankId String
+  bank   Bank   @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  issuedById String?
+  issuedBy   User?   @relation("CardIssuer", fields: [issuedById], references: [id], onDelete: SetNull)
+
+  applicationId String?          @unique
+  application   CardApplication? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+
+  charges    CardCharge[]
+  statements CardStatement[]
+  payments   CardPayment[]
+
+  @@index([ownerId])
+  @@index([bankId, status])
+}
+
+// Un cargo contra la tarjeta: consumo, interés o cargo del banco.
+// Mientras statementId sea null, el cargo pertenece al período abierto.
+model CardCharge {
+  id          String         @id @default(cuid())
+  kind        CardChargeKind @default(PURCHASE)
+  amount      Decimal        @db.Decimal(14, 2)
+  description String
+  category    String?
+  createdAt   DateTime       @default(now())
+
+  cardId String
+  card   CreditCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  // Comercio donde se consumió (otro alumno). Null en intereses y cargos.
+  merchantId String?
+  merchant   User?   @relation("CardMerchant", fields: [merchantId], references: [id], onDelete: SetNull)
+
+  // Movimiento banco -> comercio que respalda el consumo.
+  transactionId String?      @unique
+  transaction   Transaction? @relation("ChargeTransaction", fields: [transactionId], references: [id], onDelete: SetNull)
+
+  statementId String?
+  statement   CardStatement? @relation(fields: [statementId], references: [id], onDelete: SetNull)
+
+  @@index([cardId, statementId])
+}
+
+// Resumen de un período de la tarjeta.
+model CardStatement {
+  id          String          @id @default(cuid())
+  periodStart DateTime
+  periodEnd   DateTime // fecha de cierre
+  dueDate     DateTime // fecha de vencimiento
+  status      StatementStatus @default(CLOSED)
+
+  previousBalance Decimal @default(0) @db.Decimal(14, 2) // saldo impago que se arrastró
+  chargesTotal    Decimal @default(0) @db.Decimal(14, 2) // consumos del período
+  interest        Decimal @default(0) @db.Decimal(14, 2) // interés por financiar
+  total           Decimal @default(0) @db.Decimal(14, 2) // total a pagar
+  paid            Decimal @default(0) @db.Decimal(14, 2)
+
+  closedAt DateTime  @default(now())
+  paidAt   DateTime?
+
+  cardId String
+  card   CreditCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  charges  CardCharge[]
+  payments CardPayment[]
+
+  @@index([cardId, status])
+  @@index([dueDate])
+}
+
+// Pago (total o parcial) de un resumen, desde la billetera del alumno.
+model CardPayment {
+  id        String   @id @default(cuid())
+  amount    Decimal  @db.Decimal(14, 2)
+  createdAt DateTime @default(now())
+
+  cardId String
+  card   CreditCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  statementId String?
+  statement   CardStatement? @relation(fields: [statementId], references: [id], onDelete: SetNull)
+
+  transactionId String?      @unique
+  transaction   Transaction? @relation("PaymentTransaction", fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([cardId])
+}
+
+/**
+ * -------------------------------- Préstamos -------------------------------
+ */
+// El alumno le pide plata prestada al banco y la devuelve en cuotas. El cálculo
+// es a interés simple sobre el capital —total = capital × (1 + tasa × meses)—
+// para que puedan rehacerlo a mano en el pizarrón.
+
+enum LoanStatus {
+  PENDING // pedido, esperando la respuesta del banco
+  REJECTED
+  CANCELLED // lo dio de baja el alumno antes de que lo revisaran
+  ACTIVE // desembolsado, devolviéndose en cuotas
+  PAID
+}
+
+model Loan {
+  id     String     @id @default(cuid())
+  status LoanStatus @default(PENDING)
+
+  // Lo que pidió el alumno.
+  requestedAmount       Decimal  @db.Decimal(14, 2)
+  requestedInstallments Int      @default(3)
+  monthlyIncome         Decimal? @db.Decimal(14, 2)
+  purpose               String?
+  createdAt             DateTime @default(now())
+
+  // Lo que resolvió el banco.
+  reviewedAt DateTime?
+  reviewNote String?
+
+  // Condiciones del préstamo otorgado (null mientras no esté aprobado).
+  principal         Decimal? @db.Decimal(14, 2) // capital desembolsado
+  monthlyRatePct    Decimal? @db.Decimal(6, 2)
+  installments      Int?
+  installmentAmount Decimal? @db.Decimal(14, 2)
+  totalToRepay      Decimal? @db.Decimal(14, 2) // capital + intereses
+  paidAmount        Decimal  @default(0) @db.Decimal(14, 2)
+
+  disbursedAt DateTime?
+  paidAt      DateTime?
+
+  borrowerId String
+  borrower   User   @relation("LoanBorrower", fields: [borrowerId], references: [id], onDelete: Cascade)
+
+  bankId String
+  bank   Bank   @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  reviewedById String?
+  reviewedBy   User?   @relation("LoanReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  // Movimiento del desembolso (banco -> alumno).
+  transactionId String?      @unique
+  transaction   Transaction? @relation("LoanDisbursement", fields: [transactionId], references: [id], onDelete: SetNull)
+
+  payments LoanPayment[]
+
+  @@index([bankId, status])
+  @@index([borrowerId])
+}
+
+// Pago de una cuota (o de una parte) desde la billetera del alumno.
+model LoanPayment {
+  id        String   @id @default(cuid())
+  amount    Decimal  @db.Decimal(14, 2)
+  createdAt DateTime @default(now())
+
+  loanId String
+  loan   Loan   @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  transactionId String?      @unique
+  transaction   Transaction? @relation("LoanPaymentTransaction", fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([loanId])
+}
+
+/**
+ * ---------------------------- Cheques y ventanilla -------------------------
+ */
+// El cheque es papel: el alumno lo llena de la chequera física y se lo da a
+// otro alumno. En la app queda el espejo de ese papel, igual que pasa con la
+// tarjeta de crédito. El beneficiario después lo va a cobrar al mostrador de
+// cualquiera de los bancos, y recién ahí se mueve la plata: si el librador no
+// tiene fondos, el cheque rebota y queda la marca en su historial.
+
+model Cheque {
+  id     String       @id @default(cuid())
+  number String       @unique // número impreso en la chequera de papel
+  amount Decimal      @db.Decimal(14, 2)
+  status ChequeStatus @default(ISSUED)
+
+  concept String? // "por la publicidad", "seña del pedido"...
+
+  issuedAt  DateTime @default(now())
+  // Fecha a partir de la cual se puede cobrar. Igual al día de emisión en un
+  // cheque común; posterior en uno diferido.
+  payableAt DateTime
+
+  paidAt       DateTime?
+  bouncedAt    DateTime?
+  bounceReason String?
+  cancelledAt  DateTime?
+
+  // Comisión que se quedó el banco al hacerlo efectivo.
+  fee Decimal? @db.Decimal(14, 2)
+
+  // Librador: el que firma el cheque y del que sale la plata.
+  drawerId String
+  drawer   User   @relation("ChequeDrawer", fields: [drawerId], references: [id], onDelete: Cascade)
+
+  // Beneficiario: a la orden de quién está.
+  payeeId String
+  payee   User   @relation("ChequePayee", fields: [payeeId], references: [id], onDelete: Cascade)
+
+  // Quién lo cargó en la app: el propio librador, o el empleado del banco que
+  // lo dio de alta en la ventanilla con el papel a la vista. Nunca el
+  // beneficiario, para que nadie se cobre un cheque que inventó.
+  registeredById String?
+  registeredBy   User?   @relation("ChequeRegisteredBy", fields: [registeredById], references: [id], onDelete: SetNull)
+
+  // Banco y cajero que lo atendieron.
+  bankId String?
+  bank   Bank?   @relation(fields: [bankId], references: [id], onDelete: SetNull)
+
+  paidById String?
+  paidBy   User?   @relation("ChequePaidBy", fields: [paidById], references: [id], onDelete: SetNull)
+
+  transactionId String?      @unique
+  transaction   Transaction? @relation("ChequeTransaction", fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([drawerId, status])
+  @@index([payeeId, status])
+  @@index([bankId])
+  @@index([status, payableAt])
+}
+
+// Depósito o extracción de billetes por la ventanilla del banco.
+model CashOperation {
+  id     String            @id @default(cuid())
+  kind   CashOperationKind
+  amount Decimal           @db.Decimal(14, 2)
+  note   String?
+
+  createdAt DateTime @default(now())
+
+  bankId String
+  bank   Bank   @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  // Alumno que trae o se lleva el efectivo.
+  customerId String
+  customer   User   @relation("CashCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+
+  // Empleado de quinto que atendió el mostrador.
+  tellerId String?
+  teller   User?   @relation("CashTeller", fields: [tellerId], references: [id], onDelete: SetNull)
+
+  transactionId String?      @unique
+  transaction   Transaction? @relation("CashTransaction", fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([bankId, createdAt])
+  @@index([customerId])
 }

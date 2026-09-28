@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireAdminSession } from "@/lib/session";
+import {
+  requireAdmin,
+  requireAdminAreaSession,
+  requireAdminSession,
+} from "@/lib/session";
 import {
   issuanceSchema,
   depositSchema,
@@ -16,7 +20,7 @@ import {
   prizeFineSchema,
   recurringSchema,
 } from "@/lib/validations";
-import { generateAlias, generateCvu } from "@/lib/utils";
+import { formatMoney, generateAlias, generateCvu } from "@/lib/utils";
 import { runRecurring } from "@/lib/recurring";
 import type { ActionResult } from "@/app/actions/student";
 
@@ -56,76 +60,124 @@ export async function issueMoney(
   };
 }
 
-/** Cargar saldo a un alumno (simula que entregó efectivo físico). */
+/**
+ * Cargar saldo (simula la entrega de efectivo físico).
+ *
+ * Va a un alumno puntual o a un curso entero: cuando arranca la simulación
+ * todos reciben el mismo capital inicial, y hacerlo de a uno son treinta y
+ * cinco formularios. El importe es **por alumno**, no un total a repartir, y
+ * la carga es todo o nada: si al Banco Central no le alcanza para el curso
+ * completo, no se carga a nadie.
+ */
 export async function depositToStudent(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
   const admin = await requireAdmin();
   const parsed = depositSchema.safeParse({
-    studentId: formData.get("studentId"),
+    studentId: formData.get("studentId") || undefined,
+    groupId: formData.get("groupId") || undefined,
     amount: formData.get("amount"),
     description: formData.get("description") || undefined,
   });
   if (!parsed.success)
     return { ok: false, error: parsed.error.issues[0].message };
 
-  const { studentId, amount, description } = parsed.data;
+  const { studentId, groupId, amount, description } = parsed.data;
   const amountDec = D(amount);
 
-  const student = await prisma.user.findUnique({
-    where: { id: studentId },
-    include: { wallet: true },
-  });
-  if (!student || !student.wallet)
-    return { ok: false, error: "Alumno no encontrado." };
+  // Quiénes reciben. El grupo manda si vino: el formulario sólo envía uno.
+  let targets: { id: string; name: string }[] = [];
+  let groupName: string | null = null;
+  if (groupId && groupId !== "__none__") {
+    const group = await prisma.group.findUnique({
+      where: { id: groupId },
+      select: { name: true },
+    });
+    if (!group) return { ok: false, error: "Ese curso ya no existe." };
+    groupName = group.name;
+    targets = await prisma.user.findMany({
+      where: { groupId, role: "STUDENT", wallet: { isNot: null } },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+    if (targets.length === 0)
+      return { ok: false, error: `${group.name} no tiene alumnos todavía.` };
+  } else if (studentId) {
+    const student = await prisma.user.findUnique({
+      where: { id: studentId },
+      select: { id: true, name: true, role: true, wallet: { select: { id: true } } },
+    });
+    if (!student || student.role !== "STUDENT" || !student.wallet)
+      return { ok: false, error: "Alumno no encontrado." };
+    targets = [{ id: student.id, name: student.name }];
+  } else {
+    return { ok: false, error: "Elegí un alumno o un curso." };
+  }
+
+  const total = amountDec.times(targets.length);
 
   try {
     await prisma.$transaction(async (tx) => {
       const adminWallet = await tx.wallet.findUniqueOrThrow({
         where: { userId: admin.id },
       });
-      if (adminWallet.balance.lessThan(amountDec)) {
+      if (adminWallet.balance.lessThan(total)) {
         throw new Error("SALDO_INSUFICIENTE");
       }
       await tx.wallet.update({
         where: { userId: admin.id },
-        data: { balance: { decrement: amountDec } },
+        data: { balance: { decrement: total } },
       });
-      await tx.wallet.update({
-        where: { userId: studentId },
-        data: { balance: { increment: amountDec } },
-      });
-      await tx.transaction.create({
-        data: {
-          type: "DEPOSIT",
-          amount: amountDec,
-          description: description?.trim() || "Carga de saldo",
-          senderId: admin.id,
-          receiverId: studentId,
-        },
-      });
-      await tx.notification.create({
-        data: {
-          userId: studentId,
-          type: "MONEY_RECEIVED",
-          title: "¡Recibiste dinero!",
-          body: `Se cargaron ${amount.toFixed(2)} a tu billetera.`,
-        },
-      });
+
+      for (const target of targets) {
+        await tx.wallet.update({
+          where: { userId: target.id },
+          data: { balance: { increment: amountDec } },
+        });
+        await tx.transaction.create({
+          data: {
+            type: "DEPOSIT",
+            amount: amountDec,
+            description: description?.trim() || "Carga de saldo",
+            senderId: admin.id,
+            receiverId: target.id,
+          },
+        });
+        await tx.notification.create({
+          data: {
+            userId: target.id,
+            type: "MONEY_RECEIVED",
+            title: "¡Recibiste dinero!",
+            body: `Se cargaron ${amount.toFixed(2)} a tu billetera.`,
+          },
+        });
+      }
     });
   } catch (e) {
     if (e instanceof Error && e.message === "SALDO_INSUFICIENTE")
       return {
         ok: false,
-        error: "No tenés saldo suficiente. Emití dinero primero.",
+        error:
+          groupName === null
+            ? "No tenés saldo suficiente. Emití dinero primero."
+            : `Para cargarle ${formatMoney(amount)} a cada uno de los ` +
+              `${targets.length} alumnos de ${groupName} hacen falta ` +
+              `${formatMoney(Number(total))}. Emití dinero primero.`,
       };
     return { ok: false, error: "No se pudo cargar el saldo." };
   }
 
   revalidatePath("/admin");
   revalidatePath("/admin/students");
-  return { ok: true, message: `Cargaste ${amount.toFixed(2)} a ${student.name}.` };
+  return {
+    ok: true,
+    message:
+      groupName === null
+        ? `Cargaste ${formatMoney(amount)} a ${targets[0].name}.`
+        : `Cargaste ${formatMoney(amount)} a cada uno de los ${targets.length} ` +
+          `alumnos de ${groupName} (${formatMoney(Number(total))} en total).`,
+  };
 }
 
 /** Crear facturas/servicios: a un grupo entero o a alumnos específicos. */
@@ -203,7 +255,9 @@ export async function createUser(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireAdminSession();
+  // Las dos profes dan de alta alumnos; sólo la de tercero (ADMIN) puede
+  // además crear otras profes.
+  const me = await requireAdminAreaSession();
   const parsed = createUserSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
@@ -212,11 +266,16 @@ export async function createUser(
     password: formData.get("password"),
     groupId: formData.get("groupId") || undefined,
     role: formData.get("role") || "STUDENT",
+    bankId: formData.get("bankId") || undefined,
   });
   if (!parsed.success)
     return { ok: false, error: parsed.error.issues[0].message };
 
-  const { name, email, dni, cuit, password, groupId, role } = parsed.data;
+  const { name, email, dni, cuit, password, groupId, role, bankId } =
+    parsed.data;
+
+  if (me.role !== "ADMIN" && role !== "STUDENT")
+    return { ok: false, error: "Sólo podés dar de alta alumnos." };
 
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) return { ok: false, error: "Ya existe un usuario con ese email." };
@@ -234,6 +293,10 @@ export async function createUser(
 
   const passwordHash = await bcrypt.hash(password, 10);
 
+  // Los usuarios de quinto año atienden el banco, no operan una cuenta
+  // personal: no llevan billetera.
+  const hasWallet = role === "STUDENT" || role === "ADMIN";
+
   await prisma.user.create({
     data: {
       name,
@@ -243,13 +306,21 @@ export async function createUser(
       passwordHash,
       role,
       groupId: groupId && groupId !== "__none__" ? groupId : null,
-      wallet: {
-        create: {
-          cvu: generateCvu(),
-          alias: generateAlias(name),
-          balance: 0,
-        },
-      },
+      bankId:
+        role === "BANK_EMPLOYEE" && bankId && bankId !== "__none__"
+          ? bankId
+          : null,
+      ...(hasWallet
+        ? {
+            wallet: {
+              create: {
+                cvu: generateCvu(),
+                alias: generateAlias(name),
+                balance: 0,
+              },
+            },
+          }
+        : {}),
     },
   });
 
@@ -262,7 +333,7 @@ export async function editUser(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireAdminSession();
+  const me = await requireAdminAreaSession();
   const parsed = editUserSchema.safeParse({
     userId: formData.get("userId"),
     name: formData.get("name"),
@@ -276,6 +347,21 @@ export async function editUser(
     return { ok: false, error: parsed.error.issues[0].message };
 
   const { userId, name, email, dni, cuit, groupId, password } = parsed.data;
+
+  // Corregir un dato mal cargado o blanquear una contraseña lo hacen las dos
+  // profes, pero la de quinto sólo sobre alumnos y su propia gente del banco:
+  // que no pueda cambiarle la clave a la otra profe.
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (!target) return { ok: false, error: "No se encontró el usuario." };
+  if (
+    me.role !== "ADMIN" &&
+    target.role !== "STUDENT" &&
+    target.role !== "BANK_EMPLOYEE"
+  )
+    return { ok: false, error: "No podés editar esa cuenta." };
 
   const emailOwner = await prisma.user.findUnique({ where: { email } });
   if (emailOwner && emailOwner.id !== userId)

@@ -11,6 +11,8 @@ import {
   Repeat,
   BarChart3,
   TrendingUp,
+  Landmark,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,16 +22,26 @@ const items = [
   { href: "/admin/groups", label: "Grupos", icon: FolderKanban },
   { href: "/admin/services", label: "Servicios", icon: Receipt },
   { href: "/admin/recurring", label: "Recurrentes", icon: Repeat },
+  { href: "/admin/banks", label: "Bancos", icon: Landmark },
+  { href: "/admin/cards", label: "Tarjetas", icon: CreditCard },
   { href: "/admin/rendimientos", label: "Rendimientos", icon: TrendingUp },
   { href: "/admin/transactions", label: "Transacciones", icon: ListOrdered },
   { href: "/admin/reports", label: "Reportes", icon: BarChart3 },
 ];
 
-export function AdminNav() {
+/** Lo que ve la profe de quinto: el universo bancario y los alumnos. */
+const BANK_ADMIN_HREFS = ["/admin/banks", "/admin/cards", "/admin/students"];
+
+export function AdminNav({ role }: { role?: string }) {
   const pathname = usePathname();
+  const visible =
+    role === "BANK_ADMIN"
+      ? items.filter((i) => BANK_ADMIN_HREFS.includes(i.href))
+      : items;
+
   return (
     <nav className="flex gap-1 overflow-x-auto">
-      {items.map(({ href, label, icon: Icon }) => {
+      {visible.map(({ href, label, icon: Icon }) => {
         const active =
           href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
         return (

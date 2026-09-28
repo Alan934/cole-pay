@@ -63,6 +63,13 @@ export async function transferMoney(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
+  // El formulario de pago es el mismo para los dos medios; si el alumno eligió
+  // la tarjeta, el consumo lo resuelve el circuito de crédito.
+  if (formData.get("method") === "card") {
+    const { payWithCard } = await import("@/app/actions/cards");
+    return payWithCard(null, formData);
+  }
+
   const me = await requireStudent();
 
   const parsed = transferSchema.safeParse({
@@ -165,6 +172,13 @@ export async function payInvoice(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
+  // Si el alumno eligió la tarjeta, lo resuelve el circuito de crédito: la
+  // factura la paga el banco y el consumo entra en su próximo resumen.
+  if (formData.get("method") === "card") {
+    const { payInvoiceWithCard } = await import("@/app/actions/cards");
+    return payInvoiceWithCard(null, formData);
+  }
+
   const me = await requireStudent();
   const invoiceId = String(formData.get("invoiceId") || "");
   if (!invoiceId) return { ok: false, error: "Factura inválida." };

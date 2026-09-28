@@ -42,10 +42,42 @@ export async function getSettingsView(): Promise<BankSettingsView> {
   };
 }
 
-/** Plazos fijos ofrecidos actualmente, del más corto al más largo. */
+/**
+ * Plazos que ofrece el **Banco Central** (los que administra la profe). Los
+ * bancos de quinto tienen su propia pizarra: ver `getBankTerms`.
+ */
 export async function getActiveTerms() {
   return prisma.depositTerm.findMany({
-    where: { active: true },
+    where: { active: true, bankId: null },
     orderBy: { days: "asc" },
+  });
+}
+
+/** Pizarra de tasas de un banco de quinto, del plazo más corto al más largo. */
+export async function getBankTerms(bankId: string, onlyActive = true) {
+  return prisma.depositTerm.findMany({
+    where: { bankId, ...(onlyActive ? { active: true } : {}) },
+    orderBy: { days: "asc" },
+  });
+}
+
+/**
+ * Todas las ofertas de plazo fijo vigentes, banco por banco, para que el
+ * alumno compare antes de elegir dónde poner la plata.
+ */
+export async function getDepositOffers() {
+  return prisma.bank.findMany({
+    where: { active: true, depositTerms: { some: { active: true } } },
+    select: {
+      id: true,
+      name: true,
+      color: true,
+      depositTerms: {
+        where: { active: true },
+        orderBy: { days: "asc" },
+        select: { id: true, days: true, tnaPct: true },
+      },
+    },
+    orderBy: { name: "asc" },
   });
 }

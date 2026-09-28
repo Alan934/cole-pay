@@ -73,11 +73,14 @@ export function StudentsManager({
   students,
   groups,
   initialGroupId = null,
+  canCreateStaff = false,
 }: {
   students: StudentRow[];
   groups: GroupOpt[];
   /** Grupo preseleccionado por `?grupo=` (link desde la página de grupos). */
   initialGroupId?: string | null;
+  /** Sólo la profe de tercero puede crear otras profes. */
+  canCreateStaff?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [groupId, setGroupId] = useState(() =>
@@ -155,7 +158,7 @@ export function StudentsManager({
 
   return (
     <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-      <CreateStudentForm groups={groups} />
+      <CreateStudentForm groups={groups} canCreateStaff={canCreateStaff} />
 
       <div className="flex flex-col gap-3">
         <Card className="flex flex-col gap-3 p-4">
@@ -327,7 +330,13 @@ export function StudentsManager({
   );
 }
 
-function CreateStudentForm({ groups }: { groups: GroupOpt[] }) {
+function CreateStudentForm({
+  groups,
+  canCreateStaff,
+}: {
+  groups: GroupOpt[];
+  canCreateStaff: boolean;
+}) {
   const [state, formAction] = useActionState<ActionResult | null, FormData>(
     createUser,
     null,
@@ -402,13 +411,17 @@ function CreateStudentForm({ groups }: { groups: GroupOpt[] }) {
             emptyMessage="No se encontró ningún grupo."
           />
         </div>
-        <div>
-          <Label htmlFor="c-role">Rol</Label>
-          <Select id="c-role" name="role" defaultValue="STUDENT">
-            <option value="STUDENT">Alumno</option>
-            <option value="ADMIN">Admin (Profe)</option>
-          </Select>
-        </div>
+        {canCreateStaff ? (
+          <div>
+            <Label htmlFor="c-role">Rol</Label>
+            <Select id="c-role" name="role" defaultValue="STUDENT">
+              <option value="STUDENT">Alumno</option>
+              <option value="ADMIN">Admin (Profe)</option>
+            </Select>
+          </div>
+        ) : (
+          <input type="hidden" name="role" value="STUDENT" />
+        )}
         {state && (
           <FormFeedback ok={state.ok} msg={state.ok ? state.message : state.error} />
         )}
