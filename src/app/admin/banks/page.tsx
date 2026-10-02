@@ -19,7 +19,12 @@ export default async function BanksPage() {
       orderBy: { name: "asc" },
       include: {
         account: { select: { wallet: { select: { balance: true } } } },
-        _count: { select: { employees: true } },
+        _count: {
+          select: {
+            employees: true,
+            memberships: { where: { endedAt: null } },
+          },
+        },
         cards: {
           where: { status: { in: ["ACTIVE", "BLOCKED"] } },
           select: {
@@ -99,6 +104,10 @@ export default async function BanksPage() {
                           {bank._count.employees === 1
                             ? "empleado"
                             : "empleados"}{" "}
+                          · {bank._count.memberships}{" "}
+                          {bank._count.memberships === 1
+                            ? "cliente"
+                            : "clientes"}{" "}
                           · {bank.cards.length}{" "}
                           {bank.cards.length === 1 ? "tarjeta" : "tarjetas"}
                         </p>

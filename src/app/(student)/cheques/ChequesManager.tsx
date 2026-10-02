@@ -22,6 +22,7 @@ import {
   formatChequeNumber,
 } from "@/lib/cheques";
 import { formatMoney, formatDate } from "@/lib/utils";
+import { NoBankNotice } from "@/components/student/NoBankNotice";
 
 export type ChequeView = {
   id: string;
@@ -70,11 +71,14 @@ export function ChequesManager({
   received,
   payees,
   balance,
+  canIssue,
 }: {
   drawn: ChequeView[];
   received: ChequeView[];
   payees: PayeeOption[];
   balance: number;
+  /** Para librar cheques hay que ser cliente de algún banco. */
+  canIssue: boolean;
 }) {
   // Lo que firmaste y todavía no te cobraron: la plata que ya no es tuya
   // aunque siga en la cuenta.
@@ -133,7 +137,11 @@ export function ChequesManager({
         </Card>
       )}
 
-      <IssueCheque payees={payees} />
+      {canIssue ? (
+        <IssueCheque payees={payees} />
+      ) : (
+        <NoBankNotice what="librar cheques" />
+      )}
 
       <ChequeList
         title="Cheques que recibí"

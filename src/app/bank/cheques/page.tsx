@@ -50,11 +50,15 @@ export default async function BankChequesPage() {
   const bank = me.bank;
   if (!bank) return null;
 
-  // Los cheques en circulación no son de ningún banco todavía: cualquiera los
-  // puede hacer efectivo. Los ya procesados sí quedan atados al que atendió.
-  const [pending, history, students] = await Promise.all([
+  // Los cheques en circulación no son de ningún banco todavía, pero sólo se
+  // presentan en la ventanilla donde el beneficiario es cliente. Los ya
+  // procesados quedan atados al banco que atendió.
+  const [pending, history, students, drawers] = await Promise.all([
     prisma.cheque.findMany({
-      where: { status: "ISSUED" },
+      where: {
+        status: "ISSUED",
+        payee: { memberships: { some: { bankId: bank.id, endedAt: null } } },
+      },
       include: deskInclude,
       orderBy: [{ payableAt: "asc" }, { issuedAt: "asc" }],
       take: 60,
@@ -70,6 +74,15 @@ export default async function BankChequesPage() {
       select: { id: true, name: true, group: { select: { name: true } } },
       orderBy: { name: "asc" },
     }),
+    // Para librar un cheque hay que ser cliente de algún banco.
+    prisma.user.findMany({
+      where: {
+        role: "STUDENT",
+        memberships: { some: { endedAt: null } },
+      },
+      select: { id: true, name: true, group: { select: { name: true } } },
+      orderBy: { name: "asc" },
+    }),
   ]);
 
   return (
@@ -79,6 +92,8 @@ export default async function BankChequesPage() {
         <p className="text-sm text-ink/50">
           Verificá el papel contra lo que dice el sistema y hacelo efectivo. Si
           el librador no tiene fondos, el cheque rebota y queda registrado.
+          Sólo ves los cheques de tus clientes: el que cobra tiene que estar
+          adherido a tu banco.
         </p>
       </div>
 
@@ -86,6 +101,11 @@ export default async function BankChequesPage() {
         pending={pending.map(toView)}
         history={history.map(toView)}
         students={students.map((s) => ({
+          id: s.id,
+          name: s.name,
+          group: s.group?.name ?? null,
+        }))}
+        drawers={drawers.map((s) => ({
           id: s.id,
           name: s.name,
           group: s.group?.name ?? null,

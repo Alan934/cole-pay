@@ -328,6 +328,17 @@ test.describe("Flujo del alumno", () => {
     await db.depositTerm.create({
       data: { bankId: banco.id, days: 30, tnaPct: 100 },
     });
+    // Para constituir un plazo fijo hay que ser cliente del banco.
+    const alumnos = await db.user.findMany({
+      where: { role: "STUDENT" },
+      select: { id: true },
+    });
+    await db.bankMembership.createMany({
+      data: alumnos.map((a) => ({
+        studentId: a.id,
+        bankId: banco.id,
+      })),
+    });
     return banco;
   }
 

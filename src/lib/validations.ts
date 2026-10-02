@@ -491,3 +491,15 @@ export const bankDepositTermSchema = z.object({
     .min(0, "No puede ser negativa")
     .max(9999, "Demasiado alta"),
 });
+
+/* ---------------------------- Adhesión al banco --------------------------- */
+
+/** Alta de un cliente en el mostrador. */
+export const adhereStudentSchema = z.object({
+  studentId: z.string().min(1, "Elegí al alumno"),
+  note: z.string().trim().max(200, "Máximo 200 caracteres").optional(),
+});
+
+export const endMembershipSchema = z.object({
+  membershipId: z.string().min(1, "Adhesión inválida"),
+});

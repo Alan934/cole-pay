@@ -33,11 +33,17 @@ export default async function BankLayout({
         where: { bankId: me.bank.id, status: "PENDING" },
       })
     : 0;
-  // Los cheques en circulación no son de ningún banco: cualquiera los puede
-  // hacer efectivo, así que se cuentan los que ya se pueden presentar.
+  // Los cheques en circulación no son de ningún banco: se cuentan los que ya
+  // se pueden presentar y cuyo beneficiario es cliente de este mostrador.
   const pendingCheques = me.bank
     ? await prisma.cheque.count({
-        where: { status: "ISSUED", payableAt: { lte: new Date() } },
+        where: {
+          status: "ISSUED",
+          payableAt: { lte: new Date() },
+          payee: {
+            memberships: { some: { bankId: me.bank.id, endedAt: null } },
+          },
+        },
       })
     : 0;
 

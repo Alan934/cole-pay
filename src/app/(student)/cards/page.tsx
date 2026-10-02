@@ -9,6 +9,7 @@ import {
   type CardBrandName,
 } from "@/lib/cards";
 import { Card, CardTitle } from "@/components/ui/Card";
+import { NoBankNotice } from "@/components/student/NoBankNotice";
 import { CardPanel, type CardView } from "./CardPanel";
 import { ApplyCardForm } from "./ApplyCardForm";
 import { ApplicationsList, type ApplicationView } from "./ApplicationsList";
@@ -61,9 +62,13 @@ export default async function CardsPage() {
       orderBy: { createdAt: "desc" },
       take: 8,
     }),
+    // Sólo los bancos donde es cliente; el principal (el primero al que se
+    // adhirió) va primero y queda preseleccionado.
     prisma.bank.findMany({
-      where: { active: true },
-      orderBy: { name: "asc" },
+      where: {
+        active: true,
+        memberships: { some: { studentId: me.id, endedAt: null } },
+      },
       select: {
         id: true,
         name: true,
@@ -72,9 +77,18 @@ export default async function CardsPage() {
         monthlyRatePct: true,
         closingDay: true,
         dueDays: true,
+        memberships: {
+          where: { studentId: me.id, endedAt: null },
+          select: { adheredAt: true },
+        },
       },
     }),
   ]);
+  banks.sort(
+    (a, b) =>
+      a.memberships[0].adheredAt.getTime() -
+      b.memberships[0].adheredAt.getTime(),
+  );
 
   const views: CardView[] = cards.map((card) => {
     // La deuda se calcula con todos los resúmenes vivos, no sólo con los
@@ -179,7 +193,9 @@ export default async function CardsPage() {
         </p>
       </div>
 
-      {views.length === 0 && appViews.length === 0 && (
+      {banks.length === 0 && <NoBankNotice what="pedir una tarjeta" />}
+
+      {banks.length > 0 && views.length === 0 && appViews.length === 0 && (
         <Card className="flex flex-col items-center gap-3 py-10 text-center">
           <div className="grid h-14 w-14 place-items-center rounded-2xl bg-violet/15 text-violet">
             <CreditCardIcon className="h-7 w-7" />

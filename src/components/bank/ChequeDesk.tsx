@@ -80,12 +80,16 @@ export function ChequeDesk({
   pending,
   history,
   students,
+  drawers,
   feePct,
   bankName,
 }: {
   pending: DeskChequeView[];
   history: DeskChequeView[];
+  /** Posibles beneficiarios: cualquier alumno. */
   students: StudentOption[];
+  /** Posibles libradores: sólo los que son clientes de algún banco. */
+  drawers: StudentOption[];
   feePct: number;
   bankName: string;
 }) {
@@ -109,7 +113,7 @@ export function ChequeDesk({
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 lg:grid-cols-2">
         <FeeForm feePct={feePct} />
-        <RegisterCheque students={students} />
+        <RegisterCheque students={students} drawers={drawers} />
       </div>
 
       <div>
@@ -217,7 +221,13 @@ function FeeForm({ feePct }: { feePct: number }) {
 }
 
 /** Alta de un cheque de papel que nadie cargó en la app. */
-function RegisterCheque({ students }: { students: StudentOption[] }) {
+function RegisterCheque({
+  students,
+  drawers,
+}: {
+  students: StudentOption[];
+  drawers: StudentOption[];
+}) {
   const [state, formAction] = useActionState<ActionResult | null, FormData>(
     registerChequeAtCounter,
     null,
@@ -229,10 +239,14 @@ function RegisterCheque({ students }: { students: StudentOption[] }) {
     if (state?.ok) ref.current?.reset();
   }, [state]);
 
-  const options = useMemo(
+  const payeeOptions = useMemo(
     () =>
       students.map((s) => ({ value: s.id, label: s.name, hint: s.group })),
     [students],
+  );
+  const drawerOptions = useMemo(
+    () => drawers.map((s) => ({ value: s.id, label: s.name, hint: s.group })),
+    [drawers],
   );
 
   const today = new Date().toISOString().slice(0, 10);
@@ -283,11 +297,11 @@ function RegisterCheque({ students }: { students: StudentOption[] }) {
               <SearchSelect
                 id="r-drawer"
                 name="drawerId"
-                options={options}
+                options={drawerOptions}
                 required
                 placeholder="Librador…"
                 searchPlaceholder="Buscar por nombre o curso…"
-                emptyMessage="No se encontró ningún alumno."
+                emptyMessage="Ningún cliente con ese nombre. Para librar cheques tiene que estar adherido a un banco."
               />
             </div>
             <div>
@@ -295,7 +309,7 @@ function RegisterCheque({ students }: { students: StudentOption[] }) {
               <SearchSelect
                 id="r-payee"
                 name="payeeId"
-                options={options}
+                options={payeeOptions}
                 required
                 placeholder="Beneficiario…"
                 searchPlaceholder="Buscar por nombre o curso…"

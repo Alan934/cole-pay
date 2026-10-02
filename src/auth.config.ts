@@ -40,7 +40,8 @@ export const authConfig = {
         path.startsWith("/admin/banks") ||
         path.startsWith("/admin/cards") ||
         path.startsWith("/admin/students");
-      const isBankArea = path.startsWith("/bank");
+      // Ojo: "/my-banks" es del alumno, por eso no alcanza con el prefijo "/bank".
+      const isBankArea = path === "/bank" || path.startsWith("/bank/");
       const isStudentArea =
         path.startsWith("/dashboard") ||
         path.startsWith("/transfer") ||
@@ -52,6 +53,8 @@ export const authConfig = {
         path.startsWith("/deposits") ||
         path.startsWith("/cards") ||
         path.startsWith("/loans") ||
+        path.startsWith("/cheques") ||
+        path.startsWith("/my-banks") ||
         path.startsWith("/request") ||
         path.startsWith("/rendimientos");
 

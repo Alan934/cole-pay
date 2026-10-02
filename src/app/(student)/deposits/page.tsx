@@ -3,18 +3,20 @@ import { GraduationCap } from "lucide-react";
 import { requireStudent } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getDepositOffers } from "@/lib/settings";
+import { hasAnyMembership } from "@/lib/memberships";
 import { simpleInterest } from "@/lib/interest";
 import { DepositsManager } from "./DepositsManager";
 
 export default async function DepositsPage() {
   const me = await requireStudent();
-  const [deposits, offers] = await Promise.all([
+  const [deposits, offers, hasBank] = await Promise.all([
     prisma.fixedDeposit.findMany({
       where: { userId: me.id },
       include: { bank: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
     }),
-    getDepositOffers(),
+    getDepositOffers(me.id),
+    hasAnyMembership(me.id),
   ]);
 
   const now = new Date();
@@ -72,6 +74,7 @@ export default async function DepositsPage() {
         deposits={views}
         balance={balance}
         offers={bankOffers}
+        hasBank={hasBank}
       />
     </div>
   );

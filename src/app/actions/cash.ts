@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireBankStaff } from "@/lib/session";
 import { cashOperationSchema } from "@/lib/validations";
 import { formatMoney } from "@/lib/utils";
+import { isAdhered } from "@/lib/memberships";
 import type { ActionResult } from "@/app/actions/student";
 
 /**
@@ -30,6 +31,9 @@ function revalidateCash() {
   revalidatePath("/dashboard");
   revalidatePath("/activity");
 }
+
+const NOT_CLIENT = (name: string, bank: string) =>
+  `${name} no es cliente de ${bank}. Tiene que adherirse primero.`;
 
 /** Comprueba que el cliente sea un alumno con billetera. */
 async function findCustomer(customerId: string) {
@@ -64,6 +68,8 @@ export async function depositCash(
   const customer = await findCustomer(customerId);
   if (!customer || customer.role !== "STUDENT" || !customer.wallet)
     return { ok: false, error: "El cliente no es un alumno con billetera." };
+  if (!(await isAdhered(customer.id, bank.id)))
+    return { ok: false, error: NOT_CLIENT(customer.name, bank.name) };
 
   const amountDec = D(amount);
 
@@ -153,6 +159,8 @@ export async function withdrawCash(
   const customer = await findCustomer(customerId);
   if (!customer || customer.role !== "STUDENT" || !customer.wallet)
     return { ok: false, error: "El cliente no es un alumno con billetera." };
+  if (!(await isAdhered(customer.id, bank.id)))
+    return { ok: false, error: NOT_CLIENT(customer.name, bank.name) };
 
   const amountDec = D(amount);
 

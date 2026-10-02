@@ -187,6 +187,43 @@ export async function seedBankScenario() {
     bankId: rio.id,
   });
 
+  /* --- Clientes: los alumnos de tercero adheridos a cada banco --- */
+  const adhere = (studentId: string, bankId: string, daysAgo: number) =>
+    db.bankMembership.create({
+      data: {
+        studentId,
+        bankId,
+        registeredById: lucia.id,
+        adheredAt: ago(daysAgo),
+      },
+    });
+  // Todos arrancaron en el Banco del Sol, que queda como su banco principal.
+  await adhere(sofia.id, sol.id, 60);
+  await adhere(mateo.id, sol.id, 55);
+  await adhere(valen.id, sol.id, 50);
+  await adhere(benja.id, sol.id, 45);
+  // Y algunos se sumaron después a otros bancos.
+  await adhere(sofia.id, andes.id, 20);
+  await adhere(benja.id, andes.id, 18);
+  // Todavía sin banco: es el que se adhiere en las pruebas.
+  const martina = await db.user.create({
+    data: {
+      name: "Martina Test",
+      email: "martina@test.colepay",
+      passwordHash: await bcrypt.hash("alumno1234", 10),
+      role: "STUDENT",
+      dni: "40111009",
+      groupId: s.g3b.id,
+      wallet: {
+        create: {
+          cvu: digits(7, 22),
+          alias: "martina.test.cinco",
+          balance: D(2000),
+        },
+      },
+    },
+  });
+
   /* --- Solicitudes de tarjeta esperando respuesta --- */
   await db.cardApplication.create({
     data: {
@@ -583,5 +620,5 @@ export async function seedBankScenario() {
     daysAgo: 10,
   });
 
-  return { sol, rio, andes, lucia, ...s };
+  return { sol, rio, andes, lucia, martina, ...s };
 }

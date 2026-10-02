@@ -118,7 +118,7 @@ function CashForm({
             required
             placeholder="Elegí al alumno…"
             searchPlaceholder="Buscar por nombre o curso…"
-            emptyMessage="No se encontró ningún alumno."
+            emptyMessage="No hay ningún cliente con ese nombre. ¿Ya está adherido al banco?"
           />
         </div>
 

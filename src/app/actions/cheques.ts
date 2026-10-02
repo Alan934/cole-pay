@@ -19,6 +19,11 @@ import {
   startOfDay,
 } from "@/lib/cheques";
 import { formatMoney } from "@/lib/utils";
+import {
+  hasAnyMembership,
+  isAdhered,
+  noBankMessage,
+} from "@/lib/memberships";
 import type { ActionResult } from "@/app/actions/student";
 
 /**
@@ -115,6 +120,10 @@ export async function issueCheque(
     return { ok: false, error: parsed.error.issues[0].message };
 
   const { number, payeeId, amount, payableAt, concept } = parsed.data;
+  // La chequera la da un banco: sin ser cliente de alguno no se puede librar.
+  if (!(await hasAnyMembership(me.id)))
+    return { ok: false, error: noBankMessage };
+
   const prep = await prepareCheque({
     number,
     drawerId: me.id,
@@ -231,6 +240,11 @@ export async function registerChequeAtCounter(
   });
   if (!drawer || drawer.role !== "STUDENT")
     return { ok: false, error: "El librador no es un alumno válido." };
+  if (!(await hasAnyMembership(drawerId)))
+    return {
+      ok: false,
+      error: "El librador no es cliente de ningún banco: no podría librar cheques.",
+    };
 
   const prep = await prepareCheque({ number, drawerId, payeeId, payableAt });
   if (!prep.ok) return prep;
@@ -285,6 +299,12 @@ export async function cashCheque(
       if (!cheque) throw new Error("NO_ENCONTRADO");
       if (cheque.status !== "ISSUED") throw new Error("YA_USADO");
       if (daysUntilPayable(cheque.payableAt) > 0) throw new Error("DIFERIDO");
+      // El beneficiario lo cobra en un banco donde es cliente.
+      const payeeClient = await tx.bankMembership.findFirst({
+        where: { studentId: cheque.payeeId, bankId: bank.id, endedAt: null },
+        select: { id: true },
+      });
+      if (!payeeClient) throw new Error("BENEFICIARIO_NO_CLIENTE");
 
       const amount = Number(cheque.amount);
       const drawerWallet = await tx.wallet.findUnique({
@@ -433,6 +453,11 @@ export async function cashCheque(
       return { ok: false, error: "No se encontró el cheque." };
     if (code === "YA_USADO")
       return { ok: false, error: "Ese cheque ya fue cobrado o anulado." };
+    if (code === "BENEFICIARIO_NO_CLIENTE")
+      return {
+        ok: false,
+        error: `El beneficiario no es cliente de ${bank.name}: tiene que adherirse antes de cobrar acá.`,
+      };
     if (code === "DIFERIDO")
       return {
         ok: false,
@@ -474,6 +499,11 @@ export async function rejectCheque(
   if (!cheque) return { ok: false, error: "No se encontró el cheque." };
   if (cheque.status !== "ISSUED")
     return { ok: false, error: "Ese cheque ya fue cobrado o anulado." };
+  if (!(await isAdhered(cheque.payeeId, bank.id)))
+    return {
+      ok: false,
+      error: `El beneficiario no es cliente de ${bank.name}: no se presenta en esta ventanilla.`,
+    };
 
   const reason = parsed.data.reason?.trim() || "Rechazado en la ventanilla";
 

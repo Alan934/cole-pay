@@ -1,6 +1,7 @@
 import { requireStudent } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { daysUntilPayable, isDeferred } from "@/lib/cheques";
+import { hasAnyMembership } from "@/lib/memberships";
 import { ChequesManager, type ChequeView } from "./ChequesManager";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +49,7 @@ function toView(c: ChequeRow, role: "drawer" | "payee"): ChequeView {
 export default async function ChequesPage() {
   const me = await requireStudent();
 
-  const [drawn, received, payees] = await Promise.all([
+  const [drawn, received, payees, canIssue] = await Promise.all([
     prisma.cheque.findMany({
       where: { drawerId: me.id },
       include: chequeInclude,
@@ -66,6 +67,7 @@ export default async function ChequesPage() {
       select: { id: true, name: true, group: { select: { name: true } } },
       orderBy: { name: "asc" },
     }),
+    hasAnyMembership(me.id),
   ]);
 
   return (
@@ -87,6 +89,7 @@ export default async function ChequesPage() {
           group: p.group?.name ?? null,
         }))}
         balance={Number(me.wallet?.balance ?? 0)}
+        canIssue={canIssue}
       />
     </div>
   );
