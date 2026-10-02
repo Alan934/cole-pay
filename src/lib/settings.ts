@@ -62,12 +62,17 @@ export async function getBankTerms(bankId: string, onlyActive = true) {
 }
 
 /**
- * Todas las ofertas de plazo fijo vigentes, banco por banco, para que el
- * alumno compare antes de elegir dónde poner la plata.
+ * Las ofertas de plazo fijo vigentes de los bancos donde el alumno es cliente,
+ * banco por banco, para que compare antes de elegir dónde poner la plata. El
+ * banco principal (el primero al que se adhirió) va primero.
  */
-export async function getDepositOffers() {
-  return prisma.bank.findMany({
-    where: { active: true, depositTerms: { some: { active: true } } },
+export async function getDepositOffers(studentId: string) {
+  const banks = await prisma.bank.findMany({
+    where: {
+      active: true,
+      depositTerms: { some: { active: true } },
+      memberships: { some: { studentId, endedAt: null } },
+    },
     select: {
       id: true,
       name: true,
@@ -77,7 +82,16 @@ export async function getDepositOffers() {
         orderBy: { days: "asc" },
         select: { id: true, days: true, tnaPct: true },
       },
+      memberships: {
+        where: { studentId, endedAt: null },
+        select: { adheredAt: true },
+      },
     },
     orderBy: { name: "asc" },
   });
+  return banks.sort(
+    (a, b) =>
+      a.memberships[0].adheredAt.getTime() -
+      b.memberships[0].adheredAt.getTime(),
+  );
 }

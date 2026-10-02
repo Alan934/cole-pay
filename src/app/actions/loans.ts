@@ -12,6 +12,7 @@ import {
 } from "@/lib/validations";
 import { quoteLoan } from "@/lib/loans";
 import { formatMoney } from "@/lib/utils";
+import { isAdhered, notAdheredMessage } from "@/lib/memberships";
 import type { ActionResult } from "@/app/actions/student";
 
 /**
@@ -57,6 +58,8 @@ export async function applyForLoan(
   if (!bank) return { ok: false, error: "No se encontró el banco." };
   if (!bank.active)
     return { ok: false, error: `${bank.name} no está dando préstamos.` };
+  if (!(await isAdhered(me.id, bankId)))
+    return { ok: false, error: notAdheredMessage(bank.name) };
 
   const max = Number(bank.maxLoanAmount);
   if (max > 0 && requestedAmount > max) {

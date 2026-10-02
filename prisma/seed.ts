@@ -325,6 +325,28 @@ async function main() {
     bankId: bancos[0].id,
   });
 
+  // Los alumnos de ejemplo ya son clientes del primer banco, que es el
+  // principal de todos. Sin adhesión no pueden pedir tarjeta, préstamo ni
+  // hacer plazos fijos: en producción lo hacen en el mostrador.
+  const lucia = await prisma.user.findUniqueOrThrow({
+    where: { email: "lucia@colepay.edu" },
+  });
+  const clientes = await prisma.user.findMany({
+    where: { role: "STUDENT", email: { in: alumnos.map((a) => a.email) } },
+    select: { id: true },
+  });
+  for (const c of clientes) {
+    await prisma.bankMembership.upsert({
+      where: { studentId_bankId: { studentId: c.id, bankId: bancos[0].id } },
+      update: {},
+      create: {
+        studentId: c.id,
+        bankId: bancos[0].id,
+        registeredById: lucia.id,
+      },
+    });
+  }
+
   console.log("✅ Listo. Usuarios de prueba:");
   console.log("   Rendimientos: desactivados (activalos en /admin/rendimientos)");
   console.log("   ADMIN   → admin@colepay.edu / admin1234");

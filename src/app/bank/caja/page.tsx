@@ -14,7 +14,10 @@ export default async function BankCashPage() {
 
   const [customers, operations, deposited, withdrawn] = await Promise.all([
     prisma.user.findMany({
-      where: { role: "STUDENT" },
+      where: {
+        role: "STUDENT",
+        memberships: { some: { bankId: bank.id, endedAt: null } },
+      },
       select: {
         id: true,
         name: true,
@@ -52,7 +55,8 @@ export default async function BankCashPage() {
         <h1 className="text-2xl font-bold">Ventanilla</h1>
         <p className="text-sm text-ink/50">
           Los billetes que entran a la caja son los que después podés prestar.
-          Si prestaste de más y vienen a retirar, no te va a alcanzar.
+          Si prestaste de más y vienen a retirar, no te va a alcanzar. Sólo
+          atendés a los alumnos adheridos a tu banco.
         </p>
       </div>
 

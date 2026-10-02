@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   ArrowLeftRight,
+  Building2,
   ChevronRight,
   Clock,
   CreditCard,
@@ -35,6 +36,7 @@ const QUICK_ACTIONS = [
   { href: "/goals", label: "Metas", sub: "Ahorrar", icon: Target, tone: "bg-accent/15 text-accent" },
   { href: "/deposits", label: "Plazo fijo", sub: "Ganar interés", icon: Landmark, tone: "bg-violet/15 text-violet" },
   { href: "/cheques", label: "Cheques", sub: "Pagar a plazo", icon: FileSignature, tone: "bg-warning/15 text-warning" },
+  { href: "/my-banks", label: "Mis bancos", sub: "Adhesión", icon: Building2, tone: "bg-accent/15 text-accent" },
 ];
 
 export default async function DashboardPage() {

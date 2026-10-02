@@ -2,6 +2,7 @@ import { HandCoins } from "lucide-react";
 import { requireStudent } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { Card, CardTitle } from "@/components/ui/Card";
+import { NoBankNotice } from "@/components/student/NoBankNotice";
 import { LoanPanel, type LoanView } from "./LoanPanel";
 import { LoanRequestForm, type LoanBankOption } from "./LoanRequestForm";
 
@@ -17,18 +18,31 @@ export default async function LoansPage() {
       orderBy: { createdAt: "desc" },
       take: 10,
     }),
+    // Sólo los bancos donde es cliente; el principal (el primero al que se
+    // adhirió) va primero y queda preseleccionado.
     prisma.bank.findMany({
-      where: { active: true },
-      orderBy: { name: "asc" },
+      where: {
+        active: true,
+        memberships: { some: { studentId: me.id, endedAt: null } },
+      },
       select: {
         id: true,
         name: true,
         color: true,
         loanRatePct: true,
         maxLoanAmount: true,
+        memberships: {
+          where: { studentId: me.id, endedAt: null },
+          select: { adheredAt: true },
+        },
       },
     }),
   ]);
+  banks.sort(
+    (a, b) =>
+      a.memberships[0].adheredAt.getTime() -
+      b.memberships[0].adheredAt.getTime(),
+  );
 
   const views: LoanView[] = loans.map((l) => ({
     id: l.id,
@@ -76,7 +90,9 @@ export default async function LoansPage() {
         </p>
       </div>
 
-      {views.length === 0 && (
+      {banks.length === 0 && <NoBankNotice what="pedir un préstamo" />}
+
+      {banks.length > 0 && views.length === 0 && (
         <Card className="flex flex-col items-center gap-3 py-10 text-center">
           <div className="grid h-14 w-14 place-items-center rounded-2xl bg-violet/15 text-violet">
             <HandCoins className="h-7 w-7" />

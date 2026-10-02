@@ -168,6 +168,11 @@ model User {
   cashOperations    CashOperation[] @relation("CashCustomer")
   cashOperated      CashOperation[] @relation("CashTeller")
 
+  // Bancos a los que está adherido (alumno de tercero) y adhesiones que dio de
+  // alta en el mostrador (empleado de quinto).
+  memberships           BankMembership[] @relation("MembershipStudent")
+  membershipsRegistered BankMembership[] @relation("MembershipRegistrar")
+
   @@index([groupId])
   @@index([role])
   @@index([bankId])
@@ -556,6 +561,7 @@ model Bank {
   deposits     FixedDeposit[]
   depositTerms DepositTerm[]
   movements    Transaction[]   @relation("BankMovements")
+  memberships  BankMembership[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -865,4 +871,36 @@ model CashOperation {
 
   @@index([bankId, createdAt])
   @@index([customerId])
+}
+
+/**
+ * ------------------------------ Adhesión al banco -------------------------
+ */
+// Un alumno de tercero sólo opera con los bancos a los que está adherido. El
+// trámite se hace en persona en el mostrador; los alumnos de quinto cargan la
+// relación en el sistema. Puede estar adherido a varios bancos; el principal
+// es el primero al que se adhirió (la adhesión vigente más antigua).
+
+model BankMembership {
+  id        String    @id @default(cuid())
+  adheredAt DateTime  @default(now())
+  // Baja de la adhesión. Null mientras esté vigente; la fila se conserva para
+  // que quede el historial y se reactiva si el alumno vuelve.
+  endedAt   DateTime?
+
+  note String?
+
+  studentId String
+  student   User   @relation("MembershipStudent", fields: [studentId], references: [id], onDelete: Cascade)
+
+  bankId String
+  bank   Bank   @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  // Empleado del banco que dio de alta la adhesión.
+  registeredById String?
+  registeredBy   User?   @relation("MembershipRegistrar", fields: [registeredById], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, bankId])
+  @@index([bankId, endedAt])
+  @@index([studentId, endedAt])
 }

@@ -11,11 +11,13 @@ import {
   Landmark,
   LayoutDashboard,
   PiggyBank,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/bank", label: "Mostrador", icon: LayoutDashboard },
+  { href: "/bank/clients", label: "Clientes", icon: Users },
   { href: "/bank/applications", label: "Solicitudes", icon: Inbox },
   { href: "/bank/cards", label: "Tarjetas", icon: CreditCard },
   { href: "/bank/loans", label: "Préstamos", icon: HandCoins },

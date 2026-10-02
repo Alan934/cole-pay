@@ -7,6 +7,7 @@ import { requireBankStaff, requireStudent } from "@/lib/session";
 import { bankDepositTermSchema, openDepositSchema } from "@/lib/validations";
 import { addDays, simpleInterest } from "@/lib/interest";
 import { formatMoney } from "@/lib/utils";
+import { isAdhered, notAdheredMessage } from "@/lib/memberships";
 import type { ActionResult } from "@/app/actions/student";
 
 /**
@@ -64,6 +65,8 @@ export async function openDeposit(
     return { ok: false, error: "Ese plazo ya no está disponible." };
   if (!term.bank.active)
     return { ok: false, error: `${term.bank.name} no está tomando depósitos.` };
+  if (!(await isAdhered(me.id, term.bank.id)))
+    return { ok: false, error: notAdheredMessage(term.bank.name) };
 
   const tnaPct = Number(term.tnaPct);
   const interest = simpleInterest(principal, tnaPct, term.days);

@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { formatMoney, formatDate } from "@/lib/utils";
 import { breakdown, DAYS_IN_YEAR } from "@/lib/interest";
+import { NoBankNotice } from "@/components/student/NoBankNotice";
 
 export type DepositView = {
   id: string;
@@ -75,17 +76,20 @@ export function DepositsManager({
   deposits,
   balance,
   offers,
+  hasBank,
 }: {
   deposits: DepositView[];
   balance: number;
   offers: BankOffer[];
+  /** ¿Es cliente de algún banco? Si no, no puede constituir plazos fijos. */
+  hasBank: boolean;
 }) {
   const active = deposits.filter((d) => d.status === "ACTIVE");
   const done = deposits.filter((d) => d.status !== "ACTIVE");
 
   return (
     <div className="flex flex-col gap-5">
-      <CreateDeposit balance={balance} offers={offers} />
+      <CreateDeposit balance={balance} offers={offers} hasBank={hasBank} />
 
       {active.length > 0 && (
         <section className="flex flex-col gap-3">
@@ -120,9 +124,11 @@ export function DepositsManager({
 function CreateDeposit({
   balance,
   offers,
+  hasBank,
 }: {
   balance: number;
   offers: BankOffer[];
+  hasBank: boolean;
 }) {
   const [state, formAction] = useActionState<ActionResult | null, FormData>(
     openDeposit,
@@ -159,12 +165,14 @@ function CreateDeposit({
     return breakdown(p, term.tnaPct, term.days);
   }, [principal, term]);
 
+  if (!hasBank) return <NoBankNotice what="hacer un plazo fijo" />;
+
   if (offers.length === 0 || !bank) {
     return (
       <Card className="flex flex-col items-center gap-2 py-8 text-center text-ink/50">
         <Landmark className="h-7 w-7" />
         <p className="text-sm">
-          Ningún banco está tomando plazos fijos en este momento.
+          Ninguno de tus bancos está tomando plazos fijos en este momento.
         </p>
       </Card>
     );
