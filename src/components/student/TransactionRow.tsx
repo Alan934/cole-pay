@@ -101,8 +101,9 @@ export function TransactionRow({ tx }: { tx: TxView }) {
           </Detail>
         </dl>
 
-        {/* Las transferencias tienen comprobante para compartir o imprimir. */}
-        {tx.type === "TRANSFER" && (
+        {/* Transferencias y cobros con tarjeta tienen comprobante. */}
+        {(tx.type === "TRANSFER" ||
+          (tx.type === "CARD_PURCHASE" && tx.incoming)) && (
           <Link
             href={`/receipt/${tx.id}`}
             className="flex h-10 items-center justify-center gap-2 rounded-xl bg-accent/15 text-sm font-semibold text-accent transition-colors hover:bg-accent/25"

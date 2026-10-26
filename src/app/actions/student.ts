@@ -137,6 +137,7 @@ export async function transferMoney(
           type: "MONEY_RECEIVED",
           title: "¡Recibiste dinero!",
           body: `${me.name} te transfirió ${amount.toFixed(2)}.`,
+          href: `/receipt/${movement.id}`,
         },
       });
 

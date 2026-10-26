@@ -35,6 +35,7 @@ export default async function CardsPage() {
             category: true,
             createdAt: true,
             statementId: true,
+            transactionId: true,
           },
         },
         statements: {
@@ -49,6 +50,7 @@ export default async function CardsPage() {
                 amount: true,
                 description: true,
                 createdAt: true,
+                transactionId: true,
               },
             },
           },
@@ -132,6 +134,7 @@ export default async function CardsPage() {
         amount: Number(c.amount),
         description: c.description,
         createdAt: c.createdAt.toISOString(),
+        transactionId: c.transactionId,
       })),
       statements: card.statements.map((s) => ({
         id: s.id,
@@ -150,6 +153,7 @@ export default async function CardsPage() {
           amount: Number(c.amount),
           description: c.description,
           createdAt: c.createdAt.toISOString(),
+          transactionId: c.transactionId,
         })),
       })),
     };

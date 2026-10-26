@@ -3,6 +3,7 @@ import { ArrowRight, Check } from "lucide-react";
 import { requireStudent } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { taxIdOf } from "@/lib/identity";
+import { CARD_BRAND_LABELS, type CardBrandName } from "@/lib/cards";
 import { formatDateLong, formatMoney } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
 import { Logo } from "@/components/Logo";
@@ -15,6 +16,19 @@ type Party = {
   cvu: string | null;
 };
 
+type Person = {
+  name: string;
+  cuit: string | null;
+  dni: string | null;
+  wallet: { alias: string; cvu: string } | null;
+};
+
+/** Texto de la descripción de una compra con tarjeta, sin la marca interna. */
+function cardMessage(description: string): string | null {
+  const msg = description.replace(/ \(tarjeta ••••\d{4} de .*\)$/, "").trim();
+  return msg && msg !== "Compra con tarjeta" ? msg : null;
+}
+
 export default async function ReceiptPage({
   params,
 }: {
@@ -23,21 +37,44 @@ export default async function ReceiptPage({
   const me = await requireStudent();
   const { id } = await params;
 
-  // Sólo lo ven quien envió y quien recibió. Para cualquier otro, no existe.
+  // Sólo lo ven las partes: quien envía y quien recibe una transferencia o,
+  // en una compra con tarjeta, el titular y el comercio. Para cualquier otro,
+  // el comprobante no existe.
   const tx = await prisma.transaction.findFirst({
     where: {
       id,
-      type: "TRANSFER",
-      OR: [{ senderId: me.id }, { receiverId: me.id }],
+      OR: [
+        {
+          type: "TRANSFER",
+          OR: [{ senderId: me.id }, { receiverId: me.id }],
+        },
+        {
+          type: "CARD_PURCHASE",
+          OR: [
+            { receiverId: me.id },
+            { cardCharge: { is: { card: { ownerId: me.id } } } },
+          ],
+        },
+      ],
     },
     include: {
       sender: { include: { wallet: true } },
       receiver: { include: { wallet: true } },
+      cardCharge: {
+        include: {
+          card: {
+            include: {
+              bank: { select: { name: true } },
+              owner: { include: { wallet: true } },
+            },
+          },
+        },
+      },
     },
   });
-  if (!tx || !tx.sender || !tx.receiver) notFound();
+  if (!tx) notFound();
 
-  const toParty = (u: NonNullable<typeof tx.sender>): Party => {
+  const toParty = (u: Person): Party => {
     const t = taxIdOf(u);
     return {
       name: u.name,
@@ -46,24 +83,63 @@ export default async function ReceiptPage({
       cvu: u.wallet?.cvu ?? null,
     };
   };
-  const from = toParty(tx.sender);
-  const to = toParty(tx.receiver);
-  const iSent = tx.senderId === me.id;
+
+  const isCard = tx.type === "CARD_PURCHASE";
+  const card = tx.cardCharge?.card ?? null;
+  // En una compra con tarjeta paga el titular; el banco sólo adelanta la plata.
+  const payer = isCard ? card?.owner : tx.sender;
+  const payee = tx.receiver;
+  if (!payer || !payee) notFound();
+
+  const from = toParty(payer);
+  const to = toParty(payee);
+  const iPaid = payer.id === me.id;
 
   const amount = formatMoney(tx.amount.toString());
   const date = formatDateLong(tx.timestamp);
+  const message = isCard
+    ? cardMessage(tx.description)
+    : tx.description !== "Transferencia"
+      ? tx.description
+      : null;
+
+  const title = isCard
+    ? "Comprobante de compra con tarjeta"
+    : "Comprobante de transferencia";
+  const verb = iPaid ? (isCard ? "Pagaste" : "Enviaste") : isCard ? "Cobraste" : "Recibiste";
+  const fromLabel = isCard ? "Pagó" : "De";
+  const toLabel = isCard ? "Comercio" : "Para";
+
+  // Datos propios de la compra con tarjeta, como en un cupón real.
+  const cardRows: [string, string][] =
+    isCard && card
+      ? [
+          [
+            "Medio de pago",
+            `Tarjeta ${CARD_BRAND_LABELS[card.brand as CardBrandName]} ••••${card.last4}`,
+          ],
+          ["Banco emisor", card.bank.name],
+          [
+            "Forma de pago",
+            iPaid
+              ? "1 pago · se suma a tu próximo resumen"
+              : "1 pago · acreditado por el banco emisor",
+          ],
+          ["Estado", "Aprobada"],
+          ["Autorización", tx.id.slice(-6).toUpperCase()],
+        ]
+      : [];
 
   // Lo que se manda por WhatsApp & co.: legible sin necesidad de abrir la app.
   const shareText = [
-    "Comprobante de transferencia · ColePay",
+    `${title} · ColePay`,
     `Monto: ${amount}`,
-    `De: ${from.name}${from.taxId ? ` (${from.taxId})` : ""}`,
-    `Para: ${to.name}${to.taxId ? ` (${to.taxId})` : ""}`,
-    to.alias ? `Alias destino: ${to.alias}` : null,
+    `${fromLabel}: ${from.name}${from.taxId ? ` (${from.taxId})` : ""}`,
+    `${toLabel}: ${to.name}${to.taxId ? ` (${to.taxId})` : ""}`,
+    !isCard && to.alias ? `Alias destino: ${to.alias}` : null,
+    ...cardRows.map(([k, v]) => `${k}: ${v}`),
     `Fecha: ${date}`,
-    tx.description && tx.description !== "Transferencia"
-      ? `Mensaje: ${tx.description}`
-      : null,
+    message ? `Mensaje: ${message}` : null,
     `N° de comprobante: ${tx.id}`,
   ]
     .filter(Boolean)
@@ -74,8 +150,10 @@ export default async function ReceiptPage({
       <div className="print:hidden">
         <h1 className="text-xl font-bold">Comprobante</h1>
         <p className="text-sm text-ink/50">
-          {iSent
-            ? "Guardalo o compartilo con quien recibió el dinero."
+          {iPaid
+            ? isCard
+              ? "Guardalo o compartilo como constancia de tu compra."
+              : "Guardalo o compartilo con quien recibió el dinero."
             : "Guardalo o imprimilo como constancia de lo que recibiste."}
         </p>
       </div>
@@ -85,8 +163,8 @@ export default async function ReceiptPage({
       <Card className="overflow-hidden p-0 print:rounded-none print:border-0 print:shadow-none">
         <div className="flex items-center justify-between gap-3 border-b border-raised2/70 px-5 py-4">
           <Logo size="sm" />
-          <p className="text-xs font-medium uppercase tracking-wide text-ink/50">
-            Comprobante de transferencia
+          <p className="text-right text-xs font-medium uppercase tracking-wide text-ink/50">
+            {title}
           </p>
         </div>
 
@@ -94,25 +172,24 @@ export default async function ReceiptPage({
           <div className="grid h-12 w-12 place-items-center rounded-full bg-accent/15 text-accent">
             <Check className="h-6 w-6" strokeWidth={3} />
           </div>
-          <p className="mt-2 text-sm text-ink/60">
-            {iSent ? "Enviaste" : "Recibiste"}
-          </p>
+          <p className="mt-2 text-sm text-ink/60">{verb}</p>
           <p className="text-4xl font-bold tracking-tight">{amount}</p>
           <p className="text-sm text-ink/50">{date}</p>
         </div>
 
         <div className="grid gap-3 border-t border-raised2/70 px-5 py-5">
-          <PartyBlock label="De" party={from} you={iSent} />
+          <PartyBlock label={fromLabel} party={from} you={iPaid} />
           <div className="flex justify-center text-ink/30" aria-hidden>
             <ArrowRight className="h-4 w-4 rotate-90" />
           </div>
-          <PartyBlock label="Para" party={to} you={!iSent} />
+          <PartyBlock label={toLabel} party={to} you={!iPaid} />
         </div>
 
         <dl className="flex flex-col gap-2 border-t border-raised2/70 px-5 py-5 text-sm">
-          {tx.description && tx.description !== "Transferencia" && (
-            <Row label="Mensaje" value={tx.description} />
-          )}
+          {cardRows.map(([k, v]) => (
+            <Row key={k} label={k} value={v} />
+          ))}
+          {message && <Row label="Mensaje" value={message} />}
           {tx.category && <Row label="Categoría" value={tx.category} />}
           <Row label="N° de comprobante" value={tx.id} mono />
         </dl>
@@ -167,7 +244,7 @@ function Row({
         {label}
       </dt>
       <dd
-        className={`min-w-0 break-all text-right ${mono ? "font-mono" : ""} ${small ? "" : "font-medium"}`}
+        className={`min-w-0 break-words text-right ${mono ? "break-all font-mono" : ""} ${small ? "" : "font-medium"}`}
       >
         {value}
       </dd>

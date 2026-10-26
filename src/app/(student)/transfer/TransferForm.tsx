@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { startTransition, useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -135,7 +135,9 @@ export function TransferForm({
   /** Paso 2: el alumno confirmó, recién ahora se mueve la plata. */
   function confirmTransfer() {
     if (!pendingTransfer) return;
-    formAction(pendingTransfer.data);
+    // Dentro de una transición para que `isPending` ("Enviando...") se actualice.
+    const data = pendingTransfer.data;
+    startTransition(() => formAction(data));
   }
 
   if (showSuccess && state?.ok) {

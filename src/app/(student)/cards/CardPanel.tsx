@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import Link from "next/link";
 import { useFormStatus } from "react-dom";
 import { CalendarClock, ChevronDown, Percent, Receipt } from "lucide-react";
 import { payStatement } from "@/app/actions/cards";
@@ -23,6 +24,8 @@ export type ChargeView = {
   amount: number;
   description: string;
   createdAt: string;
+  /** Movimiento que respalda el consumo: de ahí sale su comprobante. */
+  transactionId?: string | null;
 };
 
 export type StatementView = {
@@ -299,7 +302,20 @@ function ChargeList({ charges }: { charges: ChargeView[] }) {
         >
           <div className="min-w-0">
             <p className="truncate text-ink/85">{c.description}</p>
-            <p className="text-xs text-ink/40">{formatDate(c.createdAt)}</p>
+            <p className="text-xs text-ink/40">
+              {formatDate(c.createdAt)}
+              {c.transactionId && (
+                <>
+                  {" · "}
+                  <Link
+                    href={`/receipt/${c.transactionId}`}
+                    className="font-medium text-accent hover:underline"
+                  >
+                    Ver comprobante
+                  </Link>
+                </>
+              )}
+            </p>
           </div>
           <span
             className={cn(
