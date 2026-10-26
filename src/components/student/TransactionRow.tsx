@@ -1,4 +1,6 @@
+import Link from "next/link";
 import {
+  FileText,
   ArrowUpRight,
   ArrowDownLeft,
   Sparkles,
@@ -98,6 +100,17 @@ export function TransactionRow({ tx }: { tx: TxView }) {
             {tx.id}
           </Detail>
         </dl>
+
+        {/* Las transferencias tienen comprobante para compartir o imprimir. */}
+        {tx.type === "TRANSFER" && (
+          <Link
+            href={`/receipt/${tx.id}`}
+            className="flex h-10 items-center justify-center gap-2 rounded-xl bg-accent/15 text-sm font-semibold text-accent transition-colors hover:bg-accent/25"
+          >
+            <FileText className="h-4 w-4" />
+            Ver comprobante · compartir o imprimir
+          </Link>
+        )}
 
         {/* En los intereses, además, la cuenta que los generó. */}
         {tx.accrual && (

@@ -1,10 +1,12 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import Link from "next/link";
 import {
   AlertCircle,
   Check,
   CreditCard,
+  FileText,
   Send,
   User,
   Wallet,
@@ -73,6 +75,8 @@ export function TransferForm({
     if (state?.ok) {
       setPendingTransfer(null);
       setShowSuccess(true);
+      // Con comprobante a mano, el cartel se queda hasta que el alumno decida.
+      if (state.txId) return;
       const t = setTimeout(() => setShowSuccess(false), 3500);
       return () => clearTimeout(t);
     }
@@ -148,9 +152,22 @@ export function TransferForm({
           </p>
           <p className="mt-1 text-sm text-ink/50">{state.message}</p>
         </div>
-        <Button variant="secondary" onClick={() => setShowSuccess(false)}>
-          Hacer otro pago
-        </Button>
+        <div className="flex w-full flex-col gap-2">
+          {state.txId && (
+            <Link href={`/receipt/${state.txId}`} className="w-full">
+              <Button size="lg" className="w-full">
+                <FileText className="h-5 w-5" />
+                Ver comprobante
+              </Button>
+            </Link>
+          )}
+          <Button
+            variant={state.txId ? "ghost" : "secondary"}
+            onClick={() => setShowSuccess(false)}
+          >
+            Hacer otro pago
+          </Button>
+        </div>
       </Card>
     );
   }

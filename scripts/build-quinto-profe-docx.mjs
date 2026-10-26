@@ -49,7 +49,7 @@ const k = createKit({
   shotsDir: SHOTS,
   accent: GREEN_BADGE,
   tint: GREEN_TINT,
-  steps: 10,
+  steps: 11,
 });
 const { p, sectionTitle, callout, shot, cardRow, defTable, h2, t } = k;
 const mono = { font: "Consolas", size: 20 };
@@ -79,7 +79,7 @@ children.push(
   new Paragraph({
     heading: HeadingLevel.TITLE,
     spacing: { after: 120 },
-    children: [t("El panel de quinto en 10 pantallas", { bold: true, size: 52 })],
+    children: [t("El panel de quinto en 11 pantallas", { bold: true, size: 52 })],
   }),
   p("Todo lo que administrás vos: los bancos, sus equipos y el crédito del sistema. Lo importante está marcado en rojo.", {
     run: { size: 23, color: "374151" },
@@ -87,7 +87,7 @@ children.push(
   new Paragraph({ spacing: { after: 80 }, children: [t("")] }),
   cardRow([
     ["Vos armás los bancos", "Los creás, les ponés la política de crédito y les cargás la caja."],
-    ["Quinto atiende", "Cada banco lo operan sus empleados desde su propio mostrador."],
+    ["Quinto atiende", "Cada banco lo operan sus empleados desde su propio mostrador, y sólo con los clientes que adhieren."],
     ["Podés destrabar", "Si un banco no contesta, resolvés vos la solicitud."],
   ]),
 );
@@ -107,7 +107,7 @@ children.push(
   sectionTitle(2, "Tu panel", "La barra de arriba"),
   p("Tres secciones, nada más."),
   ...shot("p2-menu", [
-    "Alumnos: las cuentas de tercero",
+    "Alumnos: las cuentas de quinto",
     "Bancos: crear, capitalizar, equipos",
     "Tarjetas: todo el crédito del sistema",
     "Salir",
@@ -124,7 +124,7 @@ children.push(
   p("Una tarjeta por banco. De un vistazo: si tiene plata, cuánto prestó y qué tiene sin contestar."),
   ...shot("p3-bancos", [
     "Tocá el banco para entrar",
-    "Cuántos lo atienden",
+    "Cuántos lo atienden y cuántos clientes tiene",
     "Abierto o cerrado",
     "Caja, prestado e interés",
   ], { wide: true }),
@@ -165,11 +165,12 @@ children.push(
     "Con este email entra",
     "Contraseña provisoria",
     "Empleado del banco o profe",
+    "El banco donde va a atender",
     "Crear la cuenta",
   ], { wide: true }),
   callout([
-    ["Elegí el banco en el mismo formulario. ", { bold: true, color: GREEN }],
-    ["Es la forma más rápida de dejar armado el equipo: seis empleados por banco es un buen número."],
+    ["El banco es obligatorio. ", { bold: true, color: GREEN }],
+    ["Un alumno de quinto sin banco no puede atender, así que el formulario no te deja crearlo sin elegir uno. Seis empleados por banco es un buen número."],
   ]),
 );
 
@@ -206,10 +207,29 @@ children.push(
   ]),
 );
 
-/* --- 8. La política de crédito --- */
+/* --- 8. Los clientes --- */
 children.push(
   new Paragraph({ children: [new PageBreak()] }),
-  sectionTitle(8, "Cambiar las condiciones", "Bancos · un banco · Datos y política"),
+  sectionTitle(8, "Quién es cliente de cada banco", "Mostrador del banco · Clientes"),
+  p("Un alumno de tercero sólo opera con los bancos a los que lo adhirieron. Lo da de alta un empleado de quinto desde su mostrador, con el alumno presente."),
+  ...shot("q-clientes", [
+    "El alumno que se presentó",
+    "Una nota, si hace falta",
+    "Queda adherido al banco",
+    "Los clientes del banco",
+    "Su primer banco es el principal",
+    "Darlo de baja",
+  ], { wide: true, maxH: 520 }),
+  callout([
+    ["Sin adhesión no hay tarjeta, préstamo, plazo fijo ni ventanilla. ", { bold: true, color: GREEN }],
+    ["Pueden ser clientes de varios bancos (el primero es el principal). Los papeles se hacen en persona, fuera de la plataforma: la app sólo registra el alta, y no se puede dar de baja a quien tenga productos abiertos en ese banco."],
+  ]),
+);
+
+/* --- 9. La política de crédito --- */
+children.push(
+  new Paragraph({ children: [new PageBreak()] }),
+  sectionTitle(9, "Cambiar las condiciones", "Bancos · un banco · Datos y política"),
   p("Sirve para ajustar el juego sobre la marcha: subir el interés, bajar el tope, cerrar un banco."),
   ...shot("p8-politica", [
     "Lo que cambies vale para las próximas",
@@ -225,7 +245,7 @@ children.push(
 
 /* --- 9. Supervisar el crédito --- */
 children.push(
-  sectionTitle(9, "Supervisar el crédito", "Tarjetas"),
+  sectionTitle(10, "Supervisar el crédito", "Tarjetas"),
   p("Todo el crédito del sistema en una pantalla, sin importar de qué banco sea."),
   ...shot("p9-credito", [
     "Solicitudes que ningún banco contestó",
@@ -248,7 +268,7 @@ children.push(
 /* --- 10. Los alumnos --- */
 children.push(
   new Paragraph({ children: [new PageBreak()] }),
-  sectionTitle(10, "Tus alumnos de quinto", "Alumnos"),
+  sectionTitle(11, "Tus alumnos de quinto", "Alumnos"),
   p("Son los que atienden los mostradores. Acá ves sólo a los tuyos: podés corregirles los datos y blanquearles la contraseña."),
   ...shot("p11-alumnos", [
     "Buscar por nombre, DNI o email",
@@ -271,13 +291,13 @@ children.push(
 /* ------------------------------ Cierre ------------------------------- */
 
 children.push(
-  new Paragraph({ children: [new PageBreak()] }),
   h2("Antes de la primera clase"),
   defTable([
     ["1. Los bancos", "Creá un banco por equipo, con nombre y color distintos. La política puede quedar igual para todos al principio."],
     ["2. Las cuentas", "Creá un usuario por alumno de quinto y asignale su banco en el mismo formulario."],
     ["3. La caja", "Capitalizá los tres bancos con el mismo monto. Sin caja no funciona nada."],
-    ["4. La prueba", "Entrá con el usuario de un alumno, mirá el mostrador y emití una tarjeta de prueba."],
+    ["4. Los clientes", "Pedile a cada banco que adhiera en Clientes a los alumnos de tercero que se acerquen. Sin clientes, el mostrador no tiene a quién atender."],
+    ["5. La prueba", "Entrá con el usuario de un alumno, mirá el mostrador y emití una tarjeta de prueba a un cliente adherido."],
   ], 2600),
   h2("Durante la cursada"),
   cardRow([
@@ -289,8 +309,10 @@ children.push(
     ["Cuidado con la caja en cero", "Un banco sin plata frena a todos sus clientes. Capitalizalo o que cobre lo que le deben."],
     ["Dejalos equivocarse", "Prestar de más y no poder pagar un retiro es la clase, no un error del sistema."],
   ]),
-  h2("Cuatro palabras"),
+  h2("Seis palabras"),
   defTable([
+    ["Adhesión", "El alta de un alumno de tercero como cliente de un banco. La carga un empleado de quinto en el mostrador; los papeles se hacen en persona."],
+    ["Banco principal", "El primer banco al que se adhirió un alumno. Puede ser cliente de varios."],
     ["Capitalizar", "Ponerle plata a la caja de un banco. Es emisión: el dinero aparece en el sistema."],
     ["Caja", "Lo que el banco tiene disponible. De ahí salen los consumos con tarjeta, los préstamos y el efectivo."],
     ["Cierre / vencimiento", [["El día que se emite el resumen y los días que tiene el cliente para pagarlo (ej. cierra el "], ["25", mono], [", vence "], ["10", mono], [" días después)."]]],
@@ -302,7 +324,7 @@ children.push(
 
 const doc = new Document({
   creator: "ColePay",
-  title: "El panel de quinto en 10 pantallas — Guía de la profe",
+  title: "El panel de quinto en 11 pantallas — Guía de la profe",
   description: "Guía del panel de bancos de ColePay para la profe de quinto",
   styles: { default: { document: { run: { font: FONT, size: 21, color: "111827" } } } },
   sections: [

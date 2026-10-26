@@ -152,7 +152,26 @@ test.describe("capturas anotadas (guías de quinto)", () => {
     const nav = page.locator("nav").first();
     await capture(page, "q2-menu", nav, []);
 
-    /* --- 3. Los números del mostrador --- */
+    /* --- 3. Clientes: la adhesión al banco --- */
+    await page.goto("/bank/clients");
+    await settle(page);
+    const clientsDesk = page
+      .locator("div.flex.flex-col.gap-6")
+      .filter({ has: page.getByText("Adherir un cliente") })
+      .last();
+    const clientsList = clientsDesk.locator("div.divide-y").first();
+    await capture(page, "q-clientes", clientsDesk, [
+      { label: "A quién dan de alta", at: clientsDesk.locator("#adhere-student") },
+      { label: "Una nota si hace falta", at: clientsDesk.locator("#adhere-note") },
+      { label: "Queda adherido", at: clientsDesk.getByRole("button", { name: "Adherir al banco" }) },
+      { label: "Sus clientes", at: clientsList },
+      { label: "Si es su primer banco", at: clientsList.getByText("Banco principal").first() },
+      { label: "Darlo de baja", at: clientsList.getByRole("button", { name: "Dar de baja" }).first() },
+    ]);
+
+    /* --- 3b. Los números del mostrador --- */
+    await page.goto("/bank");
+    await settle(page);
     const stats = page.locator("div.grid").first();
     const statCards = stats.locator("> div");
     await capture(page, "q3-mostrador", stats, [
@@ -336,7 +355,7 @@ test.describe("capturas anotadas (guías de quinto)", () => {
     // El orden de la barra es el del menú completo del admin: Alumnos, Bancos
     // y Tarjetas.
     await capture(page, "p2-menu", header, [
-      { label: "Alumnos: las cuentas de tercero", at: adminLinks.nth(0), pad: 2 },
+      { label: "Alumnos: las cuentas de quinto", at: adminLinks.nth(0), pad: 2 },
       { label: "Bancos: crear, capitalizar, equipos", at: adminLinks.nth(1), pad: 2 },
       { label: "Tarjetas: todo el crédito del sistema", at: adminLinks.nth(2), pad: 2 },
       { label: "Salir", at: header.getByRole("button", { name: "Salir" }), pad: 2 },
@@ -379,6 +398,7 @@ test.describe("capturas anotadas (guías de quinto)", () => {
       { label: "Con este email entra", at: createUser.locator("#bu-email") },
       { label: "Contraseña provisoria", at: createUser.locator("#bu-password") },
       { label: "Empleado del banco o profe", at: createUser.locator("#bu-role") },
+      { label: "El banco donde va a atender", at: createUser.locator("#bu-bank") },
       { label: "Crear la cuenta", at: createUser.getByRole("button", { name: /Crear/ }) },
     ]);
 
@@ -456,11 +476,16 @@ test.describe("capturas anotadas (guías de quinto)", () => {
       { label: "Corregir datos o blanquear la clave", at: listCol.getByRole("button", { name: "Editar" }).first() },
     ]);
 
-    const altaForm = page.locator("form", { has: page.getByLabel("Email (login)") });
+    // El header es sticky: al scrollear hasta el formulario taparía la captura.
+    await page.addStyleTag({ content: "header{position:static!important}" });
+    const altaForm = page
+      .locator("div.rounded-2xl")
+      .filter({ hasText: "Nuevo alumno de quinto" })
+      .first();
     await capture(page, "p12-alta", altaForm, [
-      { label: "Nombre, correo y DNI", at: altaForm.getByLabel("Nombre") },
-      { label: "Con esta clave entra la primera vez", at: altaForm.getByLabel("Contraseña", { exact: true }) },
-      { label: "El banco que va a atender", at: altaForm.getByLabel("Banco") },
+      { label: "Nombre, correo y DNI", at: altaForm.locator("#c-name") },
+      { label: "Con esta clave entra la primera vez", at: altaForm.locator("#c-pass") },
+      { label: "El banco que va a atender", at: altaForm.locator("#c-bank") },
     ]);
 
     writeFileSync(`${OUT}/marcas.json`, JSON.stringify(shots, null, 2));

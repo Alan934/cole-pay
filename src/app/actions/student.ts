@@ -8,7 +8,12 @@ import { taxIdOf, type TaxId } from "@/lib/identity";
 import { transferSchema, aliasSchema } from "@/lib/validations";
 
 export type ActionResult =
-  | { ok: true; message: string }
+  | {
+      ok: true;
+      message: string;
+      /** Movimiento creado, para ofrecer su comprobante. */
+      txId?: string;
+    }
   | { ok: false; error: string };
 
 /** Datos del destinatario que se muestran antes de confirmar una transferencia. */
@@ -95,8 +100,9 @@ export async function transferMoney(
     return { ok: false, error: "No podés transferirte dinero a vos mismo." };
   }
 
+  let txId: string;
   try {
-    await prisma.$transaction(async (tx) => {
+    txId = await prisma.$transaction(async (tx) => {
       // Bloqueo lógico: releer saldo dentro de la transacción.
       const senderWallet = await tx.wallet.findUniqueOrThrow({
         where: { userId: me.id },
@@ -114,7 +120,7 @@ export async function transferMoney(
         data: { balance: { increment: amountDec } },
       });
 
-      await tx.transaction.create({
+      const movement = await tx.transaction.create({
         data: {
           type: "TRANSFER",
           amount: amountDec,
@@ -150,6 +156,7 @@ export async function transferMoney(
           });
         }
       }
+      return movement.id;
     });
   } catch (e) {
     if (e instanceof Error && e.message === "SALDO_INSUFICIENTE") {
@@ -164,6 +171,7 @@ export async function transferMoney(
   return {
     ok: true,
     message: `Transferiste ${amount.toFixed(2)} a ${destWallet.user.name}.`,
+    txId,
   };
 }
 
