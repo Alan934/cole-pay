@@ -1,4 +1,11 @@
-import { Bell, Sparkles, Receipt, ArrowDownLeft } from "lucide-react";
+import Link from "next/link";
+import {
+  Bell,
+  Sparkles,
+  Receipt,
+  ArrowDownLeft,
+  ChevronRight,
+} from "lucide-react";
 import { requireStudent } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatDate, cn } from "@/lib/utils";
@@ -40,12 +47,12 @@ export default async function NotificationsPage() {
         <div className="flex flex-col gap-2">
           {notifications.map((n) => {
             const { icon: Icon, tone } = iconMap[n.type] ?? iconMap.GENERIC;
-            return (
+            const card = (
               <Card
-                key={n.id}
                 className={cn(
                   "flex items-start gap-3 py-3.5",
                   !n.read && "border-accent/30 bg-accent/[0.04]",
+                  n.href && "transition-colors hover:border-accent/40",
                 )}
               >
                 <div
@@ -67,8 +74,23 @@ export default async function NotificationsPage() {
                   <p className="mt-0.5 text-xs text-ink/30">
                     {formatDate(n.createdAt)}
                   </p>
+                  {n.href && (
+                    <p className="mt-1.5 text-xs font-medium text-accent">
+                      Ver comprobante
+                    </p>
+                  )}
                 </div>
+                {n.href && (
+                  <ChevronRight className="mt-3 h-4 w-4 shrink-0 text-ink/30" />
+                )}
               </Card>
+            );
+            return n.href ? (
+              <Link key={n.id} href={n.href} className="block">
+                {card}
+              </Link>
+            ) : (
+              <div key={n.id}>{card}</div>
             );
           })}
         </div>

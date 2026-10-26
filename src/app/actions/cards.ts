@@ -363,6 +363,7 @@ export async function payWithCard(
           type: "MONEY_RECEIVED",
           title: "¡Recibiste un pago con tarjeta!",
           body: `${me.name} te pagó ${formatMoney(amount)} con tarjeta de ${card.bank.name}.`,
+          href: `/receipt/${movement.id}`,
         },
       });
 
@@ -378,7 +379,10 @@ export async function payWithCard(
         }
       }
 
-      return { available: D(balance.available).minus(amountDec) };
+      return {
+        available: D(balance.available).minus(amountDec),
+        txId: movement.id,
+      };
     });
 
     revalidatePath("/cards");
@@ -388,6 +392,7 @@ export async function payWithCard(
     return {
       ok: true,
       message: `Pagaste ${formatMoney(amount)} a ${destWallet.user.name} con la tarjeta. Te queda ${formatMoney(Number(result.available))} de límite disponible.`,
+      txId: result.txId,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
