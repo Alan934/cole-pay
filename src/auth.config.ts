@@ -47,6 +47,7 @@ export const authConfig = {
         path.startsWith("/transfer") ||
         path.startsWith("/bills") ||
         path.startsWith("/activity") ||
+        path.startsWith("/receipt") ||
         path.startsWith("/settings") ||
         path.startsWith("/notifications") ||
         path.startsWith("/goals") ||

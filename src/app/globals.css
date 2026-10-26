@@ -49,6 +49,33 @@
   --grad-b: rgba(139, 92, 246, 0.1);
 }
 
+/* Al imprimir siempre sale con colores de papel, aunque la app esté en oscuro. */
+@media print {
+  :root,
+  :root[data-theme] {
+    --canvas: 255 255 255;
+    --panel: 255 255 255;
+    --card: 255 255 255;
+    --raised: 237 240 245;
+    --raised2: 224 228 236;
+    --raised3: 200 206 218;
+    --ink: 15 18 26;
+    --accent: 0 163 122;
+  }
+  /* Las animaciones de entrada dejarían el comprobante a medio fundido. */
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  body {
+    background-image: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
 html {
   color-scheme: dark;
 }

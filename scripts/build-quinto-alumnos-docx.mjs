@@ -1,5 +1,5 @@
 /**
- * Guía del mostrador para los alumnos de quinto ("El banco en 10 pantallas").
+ * Guía del mostrador para los alumnos de quinto ("El banco en 11 pantallas").
  *
  * Casi todo son capturas anotadas: el texto está para leer la foto, no al
  * revés. Las capturas salen de `e2e/zz-quinto-shots.spec.ts` y las marcas
@@ -48,7 +48,7 @@ const k = createKit({
   shotsDir: SHOTS,
   accent: VIOLET,
   tint: VIOLET_TINT,
-  steps: 10,
+  steps: 11,
 });
 const { p, sectionTitle, callout, shot, cardRow, defTable, h2, t } = k;
 const mono = { font: "Consolas", size: 20 };
@@ -78,7 +78,7 @@ children.push(
   new Paragraph({
     heading: HeadingLevel.TITLE,
     spacing: { after: 120 },
-    children: [t("El banco en 10 pantallas", { bold: true, size: 52 })],
+    children: [t("El banco en 11 pantallas", { bold: true, size: 52 })],
   }),
   p("Ustedes atienden el banco. Miren las fotos: lo importante está marcado en rojo.", {
     run: { size: 23, color: "374151" },
@@ -86,7 +86,7 @@ children.push(
   new Paragraph({ spacing: { after: 80 }, children: [t("")] }),
   cardRow([
     ["Ustedes son el banco", "No tienen billetera propia: manejan la caja del banco."],
-    ["Los clientes son los de tercero", "Les piden tarjetas, préstamos, cheques y efectivo."],
+    ["Sus clientes son los que dan de alta", "Sólo atienden a los alumnos de tercero adheridos a su banco."],
     ["La caja es el límite", "Si se quedan sin plata, el banco deja de funcionar."],
   ]),
 );
@@ -108,23 +108,49 @@ children.push(
 /* --- 2. Moverte por el banco --- */
 children.push(
   sectionTitle(2, "Moverse por el banco", "La barra de arriba"),
-  p("Ocho secciones. El globito amarillo avisa cuántas cosas hay esperando."),
+  p("Nueve secciones. El globito amarillo avisa cuántas cosas hay esperando."),
   ...shot("q2-menu", []),
   defTable([
     ["Mostrador", "El resumen del día: caja, pendientes y últimos movimientos."],
-    ["Solicitudes", "Los que piden tarjeta. Ustedes deciden si se la dan y con qué límite."],
+    ["Clientes", "Los alumnos adheridos a su banco: acá se los da de alta y de baja."],
+    ["Solicitudes", "Los clientes que piden tarjeta. Ustedes deciden si se la dan y con qué límite."],
     ["Tarjetas", "Las que ya emitieron: cambiar el límite, bloquear, cerrar el resumen."],
-    ["Préstamos", "Los que piden plata en cuotas."],
-    ["Cheques", "Cobrar o rechazar los cheques que traen al banco."],
-    ["Ventanilla", "Recibir y entregar billetes."],
+    ["Préstamos", "Los clientes que piden plata en cuotas."],
+    ["Cheques", "Cobrar o rechazar los cheques de sus clientes."],
+    ["Ventanilla", "Recibir y entregar billetes a sus clientes."],
     ["Plazos fijos", "La pizarra de tasas: lo que pagan por la plata que les dejan."],
     ["Cuenta", "Todo lo que entró y salió de la caja."],
   ]),
 );
 
-/* --- 3. Los números del mostrador --- */
+/* --- 3. Clientes: la adhesión --- */
 children.push(
-  sectionTitle(3, "Los números del mostrador", "Mostrador"),
+  sectionTitle(3, "Hacer cliente a un alumno", "Clientes"),
+  p("Un alumno de tercero sólo opera con los bancos a los que lo adhirieron. Se presenta, hacen el trámite en persona y lo dan de alta acá."),
+  ...shot("q-clientes", [
+    "El alumno que se presentó",
+    "Una nota, si hace falta",
+    "Queda adherido al banco",
+    "Todos sus clientes",
+    "Su primer banco es el principal",
+    "Darlo de baja",
+  ], { wide: true }),
+  callout([
+    ["Sin alta no hay nada: ", { bold: true, color: VIOLET }],
+    ["no puede pedirles tarjeta, préstamo ni plazo fijo, ni operar por la ventanilla. Los papeles del trámite son en persona, fuera de la plataforma: acá sólo se registra el alta."],
+  ]),
+  callout(
+    [
+      ["Un cliente puede estar en varios bancos. ", { bold: true, color: RED }],
+      ["El primero al que se adhirió es su banco principal. No pueden darlo de baja mientras tenga con ustedes una tarjeta, un préstamo, un plazo fijo o una solicitud abierta."],
+    ],
+    "red",
+  ),
+);
+
+/* --- 4. Los números del mostrador --- */
+children.push(
+  sectionTitle(4, "Los números del mostrador", "Mostrador"),
   p("Los cinco números que hay que mirar apenas entran."),
   ...shot("q3-mostrador", [
     "La plata que tienen",
@@ -145,8 +171,8 @@ children.push(
 /* --- 4. Dar una tarjeta --- */
 children.push(
   new Paragraph({ children: [new PageBreak()] }),
-  sectionTitle(4, "Dar una tarjeta", "Solicitudes"),
-  p("Primero miran quién pide y con qué respaldo. No están obligados a dar lo que piden."),
+  sectionTitle(5, "Dar una tarjeta", "Solicitudes"),
+  p("Sólo les llegan pedidos de sus clientes. Miran quién pide y con qué respaldo: no están obligados a dar lo que piden."),
   ...shot("q4-solicitud", [
     "Quién la pide y de qué curso",
     "Cuánto pide",
@@ -171,7 +197,7 @@ children.push(
 
 /* --- 5. Cobrar lo que prestaron --- */
 children.push(
-  sectionTitle(5, "Cobrar la tarjeta", "Tarjetas"),
+  sectionTitle(6, "Cobrar la tarjeta", "Tarjetas"),
   p("Cada consumo lo adelanta el banco. El resumen es la forma de recuperarlo."),
   ...shot("q6-tarjetas", [
     "El cliente",
@@ -189,7 +215,7 @@ children.push(
 /* --- 6. Prestar plata --- */
 children.push(
   new Paragraph({ children: [new PageBreak()] }),
-  sectionTitle(6, "Prestar plata", "Préstamos"),
+  sectionTitle(7, "Prestar plata", "Préstamos"),
   p("Ustedes eligen cuánto, a qué interés y en cuántas cuotas. La cuenta se ve antes de firmar."),
   ...shot("q7-prestamo", [
     "Capital que sale de la caja",
@@ -209,8 +235,8 @@ children.push(
 
 /* --- 7. Cheques --- */
 children.push(
-  sectionTitle(7, "Cobrar un cheque", "Cheques"),
-  p("Viene el beneficiario con el papel. Antes de pagar, miran si el que lo firmó tiene la plata."),
+  sectionTitle(8, "Cobrar un cheque", "Cheques"),
+  p("Viene el beneficiario con el papel. Sólo ven los cheques de sus clientes: el que cobra tiene que estar adherido a su banco. Antes de pagar, miran si el que lo firmó tiene la plata."),
   ...shot("q8-cheque", [
     "Importe y número del papel",
     "Quién lo firmó y para quién es",
@@ -236,15 +262,15 @@ children.push(
   ], { wide: true }),
   callout([
     ["Nunca lo carga el que lo viene a cobrar. ", { bold: true, color: VIOLET }],
-    ["Lo carga el que lo firmó, o ustedes con el papel delante."],
+    ["Lo carga el que lo firmó, o ustedes con el papel delante. Para firmar cheques hay que ser cliente de algún banco; si no, no aparece en la lista."],
   ]),
 );
 
 /* --- 8. Ventanilla --- */
 children.push(
   new Paragraph({ children: [new PageBreak()] }),
-  sectionTitle(8, "La ventanilla", "Ventanilla"),
-  p("Entran y salen billetes. Cuenten primero, carguen después."),
+  sectionTitle(9, "La ventanilla", "Ventanilla"),
+  p("Entran y salen billetes. Cuenten primero, carguen después. Sólo atienden a sus clientes: si no aparece el alumno, primero hay que adherirlo en Clientes."),
   ...shot("q10-ventanilla", [
     "A quién atienden",
     "Cuántos billetes contaron",
@@ -259,8 +285,8 @@ children.push(
 
 /* --- 9. Plazos fijos --- */
 children.push(
-  sectionTitle(9, "La pizarra de tasas", "Plazos fijos"),
-  p("Es la plata que les dejan guardada. Entra a la caja y la pueden prestar… pero hay que devolverla con interés."),
+  sectionTitle(10, "La pizarra de tasas", "Plazos fijos"),
+  p("Es la plata que sus clientes les dejan guardada. Entra a la caja y la pueden prestar… pero hay que devolverla con interés."),
   ...shot("q11-plazos", [
     "Lo que pagan contra lo que cobran",
     "Los plazos que ofrecen hoy",
@@ -279,7 +305,7 @@ children.push(
 
 /* --- 10. La cuenta --- */
 children.push(
-  sectionTitle(10, "La cuenta del banco", "Cuenta"),
+  sectionTitle(11, "La cuenta del banco", "Cuenta"),
   p("Todo lo que hicieron en el día, en una lista. Acá se ve si el banco gana o pierde."),
   ...shot("q12-cuenta", [
     "Lo que hay ahora",
@@ -292,18 +318,21 @@ children.push(
 
 children.push(
   new Paragraph({ children: [new PageBreak()] }),
-  h2("Cuatro reglas del mostrador"),
+  h2("Cinco reglas del mostrador"),
   cardRow([
+    ["Primero el alta, después el servicio", "Nada se le da a un alumno que no esté adherido a su banco."],
     ["Miren la caja antes de decir que sí", "Prestar es fácil; pagar cuando vengan todos juntos, no."],
-    ["Lo que aprueban queda a su nombre", "Cada decisión guarda quién la tomó. No presten la contraseña."],
   ]),
   new Paragraph({ spacing: { after: 100 }, children: [t("")] }),
   cardRow([
+    ["Lo que aprueban queda a su nombre", "Cada decisión guarda quién la tomó. No presten la contraseña."],
     ["El papel y la app tienen que coincidir", "La tarjeta y el cheque de cartón son el original; la app es el espejo."],
     ["Cobrar también es trabajo", "Cierren los resúmenes y revisen la mora: sin eso el banco se funde."],
   ]),
   h2("Las palabras del banco"),
   defTable([
+    ["Cliente", "Un alumno de tercero adherido a su banco. Sólo a ellos les pueden dar tarjeta, préstamo, plazo fijo y atender por ventanilla."],
+    ["Banco principal", "El primer banco al que se adhirió un alumno. Puede ser cliente de varios, pero el principal es el primero."],
     ["Caja", "La plata que el banco tiene ahora para prestar, pagar cheques y entregar por ventanilla."],
     ["Límite", "Lo máximo que un cliente puede gastar con su tarjeta antes de pagar el resumen."],
     ["Resumen", "La cuenta de lo que gastó con la tarjeta en el período, con su fecha de vencimiento."],
@@ -321,7 +350,7 @@ children.push(
 
 const doc = new Document({
   creator: "ColePay",
-  title: "El banco en 10 pantallas — Guía del mostrador",
+  title: "El banco en 11 pantallas — Guía del mostrador",
   description: "Guía de uso del mostrador del banco para los alumnos de quinto",
   styles: { default: { document: { run: { font: FONT, size: 21, color: "111827" } } } },
   sections: [

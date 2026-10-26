@@ -23,7 +23,7 @@ export default async function StudentLayout({
     <NavProgressProvider>
       <IdleLogout />
       <div className="mx-auto flex min-h-dvh max-w-lg flex-col">
-        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-raised/60 bg-canvas/70 px-4 py-3 backdrop-blur">
+        <header className="sticky top-0 z-30 flex print:hidden items-center justify-between border-b border-raised/60 bg-canvas/70 px-4 py-3 backdrop-blur">
           <div className="flex min-w-0 items-center gap-1">
             <BackButton home="/dashboard" />
             <Logo size="sm" />
@@ -37,9 +37,11 @@ export default async function StudentLayout({
           </div>
         </header>
 
-        <main className="flex-1 px-4 pb-28 pt-5">{children}</main>
+        <main className="flex-1 px-4 pb-28 pt-5 print:p-0">{children}</main>
 
-        <BottomNav unread={unread} />
+        <div className="print:hidden">
+          <BottomNav unread={unread} />
+        </div>
       </div>
     </NavProgressProvider>
   );
