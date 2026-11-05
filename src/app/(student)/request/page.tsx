@@ -24,6 +24,7 @@ export default async function RequestPage() {
     description: r.description,
     status: r.status,
     payerName: r.payer?.name ?? null,
+    transactionId: r.transactionId,
   }));
 
   return (

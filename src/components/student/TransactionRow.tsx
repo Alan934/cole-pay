@@ -7,6 +7,7 @@ import {
   Receipt,
   TrendingUp,
   ChevronDown,
+  QrCode,
 } from "lucide-react";
 import { formatMoney, formatDate, formatDateLong, cn } from "@/lib/utils";
 import { DAYS_IN_YEAR } from "@/lib/interest";
@@ -103,8 +104,9 @@ export function TransactionRow({ tx }: { tx: TxView }) {
           </Detail>
         </dl>
 
-        {/* Transferencias y cobros con tarjeta tienen comprobante. */}
+        {/* Transferencias, cobros por QR y cobros con tarjeta tienen comprobante. */}
         {(tx.type === "TRANSFER" ||
+          tx.type === "QR_PAYMENT" ||
           (tx.type === "CARD_PURCHASE" && tx.incoming)) && (
           <Link
             href={`/receipt/${tx.id}`}
@@ -168,6 +170,8 @@ function iconFor(type: string, incoming: boolean) {
     return { icon: TrendingUp, tone: "bg-accent/15 text-accent" };
   if (type === "PAYMENT")
     return { icon: Receipt, tone: "bg-warning/15 text-warning" };
+  if (type === "QR_PAYMENT")
+    return { icon: QrCode, tone: "bg-violet/15 text-violet" };
   if (incoming)
     return { icon: ArrowDownLeft, tone: "bg-accent/15 text-accent" };
   return { icon: ArrowUpRight, tone: "bg-raised2 text-ink/70" };

@@ -72,7 +72,7 @@ export default async function DashboardPage() {
         by: ["category"],
         where: {
           senderId: me.id,
-          type: { in: ["TRANSFER", "PAYMENT", "FINE"] },
+          type: { in: ["TRANSFER", "QR_PAYMENT", "PAYMENT", "FINE"] },
         },
         _sum: { amount: true },
       }),

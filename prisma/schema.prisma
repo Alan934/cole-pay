@@ -47,6 +47,7 @@ enum TransactionType {
   CHEQUE_PAYMENT // el banco hace efectivo un cheque librado por otro alumno
   FIXED_DEPOSIT_OPEN // el alumno constituye un plazo fijo en un banco
   FIXED_DEPOSIT_PAYOUT // el banco le devuelve capital (+ interés) al vencer
+  QR_PAYMENT // un alumno le paga a otro escaneando su QR de cobro (con saldo)
 }
 
 // Vida de un cheque, desde que se libra hasta que se cobra o rebota.
@@ -463,6 +464,9 @@ model PaymentRequest {
   status      RequestStatus @default(PENDING)
   createdAt   DateTime      @default(now())
   paidAt      DateTime?
+
+  // Movimiento con el que se pagó, para llevar a quien cobra a su comprobante.
+  transactionId String?
 
   requesterId String
   requester   User   @relation("RequestedBy", fields: [requesterId], references: [id], onDelete: Cascade)

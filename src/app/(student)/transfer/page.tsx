@@ -10,11 +10,12 @@ export default async function TransferPage({
     amount?: string;
     desc?: string;
     req?: string;
+    qr?: string;
   }>;
 }) {
   const me = await requireStudent();
   const balance = Number(me.wallet?.balance ?? 0);
-  const [cards, { to, amount, desc, req }] = await Promise.all([
+  const [cards, { to, amount, desc, req, qr }] = await Promise.all([
     getPayableCards(me.id),
     searchParams,
   ]);
@@ -32,7 +33,7 @@ export default async function TransferPage({
       <TransferForm
         balance={balance}
         cards={cards}
-        prefill={{ to, amount, desc, req }}
+        prefill={{ to, amount, desc, req, qr }}
       />
     </div>
   );

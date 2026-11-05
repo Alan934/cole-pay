@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { taxIdOf } from "@/lib/identity";
 import { CARD_BRAND_LABELS, type CardBrandName } from "@/lib/cards";
 import { formatDateLong, formatMoney } from "@/lib/utils";
+import { QR_LABEL } from "@/lib/payment-requests";
 import { Card } from "@/components/ui/Card";
 import { Logo } from "@/components/Logo";
 import { ReceiptActions } from "./ReceiptActions";
@@ -55,7 +56,7 @@ export default async function ReceiptPage({
       id,
       OR: [
         {
-          type: "TRANSFER",
+          type: { in: ["TRANSFER", "QR_PAYMENT"] },
           OR: [{ senderId: me.id }, { receiverId: me.id }],
         },
         {
@@ -95,6 +96,7 @@ export default async function ReceiptPage({
   };
 
   const isCard = tx.type === "CARD_PURCHASE";
+  const isQr = tx.type === "QR_PAYMENT";
   const card = tx.cardCharge?.card ?? null;
   // En una compra con tarjeta paga el titular; el banco sólo adelanta la plata.
   const payer = isCard ? card?.owner : tx.sender;
@@ -109,16 +111,25 @@ export default async function ReceiptPage({
   const date = formatDateLong(tx.timestamp);
   const message = isCard
     ? cardMessage(tx.description)
-    : tx.description !== "Transferencia"
+    : tx.description !== "Transferencia" && tx.description !== QR_LABEL
       ? tx.description
       : null;
 
   const title = isCard
     ? "Comprobante de compra con tarjeta"
-    : "Comprobante de transferencia";
-  const verb = iPaid ? (isCard ? "Pagaste" : "Enviaste") : isCard ? "Cobraste" : "Recibiste";
-  const fromLabel = isCard ? "Pagó" : "De";
-  const toLabel = isCard ? "Comercio" : "Para";
+    : isQr
+      ? "Comprobante de cobro por QR"
+      : "Comprobante de transferencia";
+  // En un cobro por QR se habla de quien paga y quien cobra.
+  const verb = iPaid
+    ? isCard || isQr
+      ? "Pagaste"
+      : "Enviaste"
+    : isCard || isQr
+      ? "Cobraste"
+      : "Recibiste";
+  const fromLabel = isCard || isQr ? "Pagó" : "De";
+  const toLabel = isCard ? "Comercio" : isQr ? "Cobró" : "Para";
 
   // Datos propios de la compra con tarjeta, como en un cupón real.
   const cardRows: [string, string][] =

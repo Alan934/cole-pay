@@ -6,13 +6,20 @@ import { prisma } from "@/lib/prisma";
 import { requireStudent } from "@/lib/session";
 import { taxIdOf, type TaxId } from "@/lib/identity";
 import { transferSchema, aliasSchema } from "@/lib/validations";
+import {
+  QR_LABEL,
+  requestErrorMessage,
+  settlePaymentRequest,
+} from "@/lib/payment-requests";
 
 export type ActionResult =
   | {
       ok: true;
       message: string;
-      /** Movimiento creado, para ofrecer su comprobante. */
+    /** Movimiento creado, para ofrecer su comprobante. */
       txId?: string;
+      /** Pedido de cobro creado, para llevar a su QR. */
+      requestId?: string;
     }
   | { ok: false; error: string };
 
@@ -89,6 +96,9 @@ export async function transferMoney(
   const { destination, amount, description, category } = parsed.data;
   const amountDec = D(amount);
   const requestId = String(formData.get("req") || "");
+  // Pago hecho desde un QR de cobro: lo marca el link del QR (qr=1) o, en los
+  // QR con monto, el pedido que salda.
+  const viaQr = formData.get("qr") === "1" || requestId !== "";
 
   // Buscar destino por alias o CVU.
   const destWallet = await findDestination(destination);
@@ -122,9 +132,10 @@ export async function transferMoney(
 
       const movement = await tx.transaction.create({
         data: {
-          type: "TRANSFER",
+          type: viaQr ? "QR_PAYMENT" : "TRANSFER",
           amount: amountDec,
-          description: description?.trim() || "Transferencia",
+          description:
+            description?.trim() || (viaQr ? QR_LABEL : "Transferencia"),
           category: category?.trim() || "General",
           senderId: me.id,
           receiverId: destWallet.userId,
@@ -135,27 +146,23 @@ export async function transferMoney(
         data: {
           userId: destWallet.userId,
           type: "MONEY_RECEIVED",
-          title: "¡Recibiste dinero!",
-          body: `${me.name} te transfirió ${amount.toFixed(2)}.`,
+          title: viaQr ? "¡Te pagaron por QR!" : "¡Recibiste dinero!",
+          body: viaQr
+            ? `${me.name} te pagó ${amount.toFixed(2)} escaneando tu QR.`
+            : `${me.name} te transfirió ${amount.toFixed(2)}.`,
           href: `/receipt/${movement.id}`,
         },
       });
 
       // Si la transferencia salda un pedido de cobro, marcarlo como pagado.
       if (requestId) {
-        const req = await tx.paymentRequest.findUnique({
-          where: { id: requestId },
+        await settlePaymentRequest(tx, {
+          requestId,
+          requesterId: destWallet.userId,
+          payerId: me.id,
+          amount: amountDec,
+          transactionId: movement.id,
         });
-        if (
-          req &&
-          req.status === "PENDING" &&
-          req.requesterId === destWallet.userId
-        ) {
-          await tx.paymentRequest.update({
-            where: { id: requestId },
-            data: { status: "PAID", paidAt: new Date(), payerId: me.id },
-          });
-        }
       }
       return movement.id;
     });
@@ -163,15 +170,18 @@ export async function transferMoney(
     if (e instanceof Error && e.message === "SALDO_INSUFICIENTE") {
       return { ok: false, error: "Saldo insuficiente para esta transferencia." };
     }
+    const reqError = e instanceof Error ? requestErrorMessage(e.message) : null;
+    if (reqError) return { ok: false, error: reqError };
     return { ok: false, error: "No se pudo completar la transferencia." };
   }
 
   revalidatePath("/dashboard");
   revalidatePath("/activity");
   revalidatePath("/transfer");
+  revalidatePath("/request");
   return {
     ok: true,
-    message: `Transferiste ${amount.toFixed(2)} a ${destWallet.user.name}.`,
+    message: `${viaQr ? "Pagaste" : "Transferiste"} ${amount.toFixed(2)} a ${destWallet.user.name}.`,
     txId,
   };
 }
