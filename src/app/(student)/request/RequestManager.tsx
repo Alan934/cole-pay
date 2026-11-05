@@ -2,7 +2,9 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { QrCode, Copy, Check, X, HandCoins } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { QrCode, Copy, Check, X, HandCoins, FileText } from "lucide-react";
 import {
   createPaymentRequest,
   cancelPaymentRequest,
@@ -13,6 +15,7 @@ import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Qr } from "@/components/Qr";
+import { AutoRefresh } from "@/components/AutoRefresh";
 import { formatMoney } from "@/lib/utils";
 
 export type RequestView = {
@@ -21,9 +24,11 @@ export type RequestView = {
   description: string | null;
   status: string;
   payerName: string | null;
+  /** Movimiento con el que se pagó, si ya está pagado. */
+  transactionId: string | null;
 };
 
-function SubmitBtn({
+export function SubmitBtn({
   label,
   variant,
 }: {
@@ -38,7 +43,7 @@ function SubmitBtn({
   );
 }
 
-function payLink(
+export function payLink(
   origin: string,
   alias: string,
   amount: number,
@@ -48,6 +53,8 @@ function payLink(
   const params = new URLSearchParams({ to: alias });
   // El QR "para recibir" no lleva monto: lo escribe quien paga.
   if (amount > 0) params.set("amount", String(amount));
+  // Marca el link como cobro por QR: lo que se pague queda registrado así.
+  params.set("qr", "1");
   if (desc) params.set("desc", desc);
   if (reqId) params.set("req", reqId);
   return `${origin}/transfer?${params.toString()}`;
@@ -64,6 +71,9 @@ export function RequestManager({
 }) {
   return (
     <div className="flex flex-col gap-5">
+      {/* Si hay cobros esperando, la lista se actualiza sola cuando los pagan. */}
+      <AutoRefresh active={requests.some((r) => r.status === "PENDING")} />
+
       {/* Mi QR para recibir (sin monto) */}
       <Card className="flex flex-col items-center gap-3 text-center">
         <CardTitle>Mi QR para recibir</CardTitle>
@@ -98,9 +108,13 @@ function CreateRequest() {
     null,
   );
   const ref = useRef<HTMLFormElement>(null);
+  const router = useRouter();
   useEffect(() => {
-    if (state?.ok) ref.current?.reset();
-  }, [state]);
+    if (!state?.ok) return;
+    ref.current?.reset();
+    // Recién creado: lo llevamos directo a su QR para que lo muestre.
+    if (state.requestId) router.push(`/request/${state.requestId}`);
+  }, [state, router]);
 
   return (
     <Card>
@@ -159,7 +173,6 @@ function RequestCard({
   origin: string;
   alias: string;
 }) {
-  const [showQr, setShowQr] = useState(false);
   const [copied, setCopied] = useState(false);
   const link = payLink(origin, alias, r.amount, r.description, r.id);
 
@@ -197,10 +210,13 @@ function RequestCard({
       {r.status === "PENDING" && (
         <>
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-raised pt-3">
-            <Button size="sm" variant="secondary" onClick={() => setShowQr((s) => !s)}>
+            <Link
+              href={`/request/${r.id}`}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-raised2 px-3 text-sm text-ink transition-all hover:bg-raised3 active:scale-[0.98]"
+            >
               <QrCode className="h-4 w-4" />
-              {showQr ? "Ocultar QR" : "Ver QR"}
-            </Button>
+              Ver QR
+            </Link>
             <Button size="sm" variant="ghost" onClick={copy}>
               {copied ? (
                 <Check className="h-4 w-4 text-accent" />
@@ -211,19 +227,24 @@ function RequestCard({
             </Button>
             <CancelRequest r={r} />
           </div>
-          {showQr && (
-            <div className="mt-3 flex justify-center">
-              <Qr value={link} size={190} className="bg-white p-2" />
-            </div>
-          )}
         </>
+      )}
+
+      {r.status === "PAID" && r.transactionId && (
+        <Link
+          href={`/receipt/${r.transactionId}`}
+          className="mt-3 flex h-9 items-center justify-center gap-2 rounded-lg bg-accent/15 text-sm font-semibold text-accent transition-colors hover:bg-accent/25"
+        >
+          <FileText className="h-4 w-4" />
+          Ver comprobante
+        </Link>
       )}
     </Card>
   );
 }
 
 /** Cancelar no tiene vuelta atrás: hay que confirmarlo. */
-function CancelRequest({ r }: { r: RequestView }) {
+export function CancelRequest({ r }: { r: RequestView }) {
   const [state, formAction] = useActionState<ActionResult | null, FormData>(
     cancelPaymentRequest,
     null,

@@ -1,7 +1,8 @@
 import { test, expect } from "@playwright/test";
 import QRCode from "qrcode";
-import { resetAndSeed, USERS, PASSWORD_STUDENT } from "./helpers/db";
+import { resetAndSeed, USERS, PASSWORD_STUDENT, db } from "./helpers/db";
 import { loginStudent } from "./helpers/auth";
+import { submitTransfer } from "./helpers/ui";
 
 test.describe("Escanear QR de cobro", () => {
   test.beforeEach(async ({ page }) => {
@@ -88,5 +89,134 @@ test.describe("Escanear QR de cobro", () => {
 
     await expect(page.getByText("Ese QR no es un cobro de ColePay.")).toBeVisible();
     await expect(page).toHaveURL(/\/scan$/);
+  });
+});
+
+test.describe("Cobro por QR", () => {
+  test.beforeEach(async ({ page }) => {
+    await resetAndSeed();
+    await page.context().clearCookies();
+  });
+
+  async function crearCobro(page: import("@playwright/test").Page, monto: string) {
+    await page.goto("/request");
+    await page.getByLabel("Monto").fill(monto);
+    await page.getByLabel("¿Por qué? (opcional)").fill("Rifa");
+    await page.getByRole("button", { name: "Crear pedido con QR" }).click();
+    await page.waitForURL(/\/request\/[^/]+$/, { timeout: 30_000 });
+  }
+
+  test("al crear el cobro te lleva a su QR", async ({ page }) => {
+    await loginStudent(page, USERS.sofia);
+    await crearCobro(page, "900");
+    const main = page.getByRole("main");
+    await expect(main).toContainText("$ 900,00");
+    await expect(main).toContainText("Esperando el pago");
+    await expect(page.getByRole("img", { name: "Código QR" })).toBeVisible();
+  });
+
+  test("quien cobra ve el pago al instante, sin recargar, y queda como Cobro por QR", async ({
+    page,
+    browser,
+  }) => {
+    await loginStudent(page, USERS.sofia);
+    await crearCobro(page, "900");
+    const req = await db.paymentRequest.findFirstOrThrow();
+
+    // Mateo (otro dispositivo) paga escaneando el QR.
+    const ctx = await browser.newContext({ baseURL: "http://localhost:3100" });
+    const mateo = await ctx.newPage();
+    await loginStudent(mateo, USERS.mateo);
+    await mateo.goto(
+      `/transfer?to=sofia.test.uno&amount=900&desc=Rifa&req=${req.id}&qr=1`,
+    );
+    // El monto del cobro no se puede cambiar.
+    await expect(mateo.getByLabel("Monto")).toHaveAttribute("readonly", "");
+    await submitTransfer(mateo);
+    await expect(mateo.getByRole("main")).toContainText("¡Pago por QR exitoso!");
+
+    // Sofía no toca nada: la pantalla se actualiza sola.
+    await expect(page.getByRole("main")).toContainText("¡Te pagaron!", {
+      timeout: 20_000,
+    });
+    await expect(page.getByRole("main")).toContainText("Pagado por Mateo Test");
+
+    // Es un movimiento de tipo "Cobro por QR", no una transferencia.
+    const tx = await db.transaction.findFirstOrThrow({
+      where: { receiverId: req.requesterId },
+    });
+    expect(tx.type).toBe("QR_PAYMENT");
+    const paid = await db.paymentRequest.findFirstOrThrow();
+    expect(paid.transactionId).toBe(tx.id);
+
+    // Y desde ahí se llega al comprobante, que lo dice.
+    await page.getByRole("link", { name: "Ver comprobante" }).click();
+    await page.waitForURL("**/receipt/**");
+    await expect(page.getByRole("main")).toContainText("Comprobante de cobro por QR");
+
+    await page.goto("/activity");
+    await expect(page.getByRole("main")).toContainText("Cobro por QR");
+    await ctx.close();
+  });
+
+  test("el QR de la lista también se actualiza solo cuando lo pagan", async ({
+    page,
+    browser,
+  }) => {
+    await loginStudent(page, USERS.sofia);
+    await crearCobro(page, "300");
+    const req = await db.paymentRequest.findFirstOrThrow();
+    await page.goto("/request");
+    await expect(page.getByRole("main")).toContainText("Pendiente");
+
+    const ctx = await browser.newContext({ baseURL: "http://localhost:3100" });
+    const mateo = await ctx.newPage();
+    await loginStudent(mateo, USERS.mateo);
+    await mateo.goto(`/transfer?to=sofia.test.uno&amount=300&req=${req.id}&qr=1`);
+    await submitTransfer(mateo);
+    await expect(mateo.getByRole("main")).toContainText("¡Pago por QR exitoso!");
+
+    await expect(page.getByRole("main")).toContainText("Pagado por Mateo Test", {
+      timeout: 20_000,
+    });
+    await ctx.close();
+  });
+
+  test("el QR sin monto (Mi QR) también registra el pago como Cobro por QR", async ({
+    page,
+  }) => {
+    await loginStudent(page, USERS.mateo);
+    await page.goto("/transfer?to=sofia.test.uno&qr=1");
+    await expect(page.getByLabel("Monto")).toHaveValue("");
+    await page.getByLabel("Monto").fill("250");
+    await submitTransfer(page);
+    await expect(page.getByRole("main")).toContainText("¡Pago por QR exitoso!");
+
+    const tx = await db.transaction.findFirstOrThrow({
+      where: { receiver: { email: USERS.sofia } },
+    });
+    expect(tx.type).toBe("QR_PAYMENT");
+  });
+
+  test("un cobro ya pagado no se puede pagar de nuevo", async ({ page, browser }) => {
+    await loginStudent(page, USERS.sofia);
+    await crearCobro(page, "500");
+    const req = await db.paymentRequest.findFirstOrThrow();
+
+    const ctx = await browser.newContext({ baseURL: "http://localhost:3100" });
+    const mateo = await ctx.newPage();
+    await loginStudent(mateo, USERS.mateo);
+    const link = `/transfer?to=sofia.test.uno&amount=500&req=${req.id}&qr=1`;
+    await mateo.goto(link);
+    await submitTransfer(mateo);
+    await expect(mateo.getByRole("main")).toContainText("¡Pago por QR exitoso!");
+
+    // Segundo intento con el mismo QR: se rechaza y no mueve plata.
+    await mateo.goto(link);
+    await mateo.getByRole("button", { name: "Continuar" }).click();
+    await mateo.getByRole("dialog").getByRole("button", { name: "Confirmar" }).click();
+    await expect(mateo.getByRole("main")).toContainText("ya fue pagado o cancelado");
+    expect(await db.transaction.count({ where: { type: "QR_PAYMENT" } })).toBe(1);
+    await ctx.close();
   });
 });

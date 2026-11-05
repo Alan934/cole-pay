@@ -14,6 +14,7 @@ const PAGE_SIZE = 25;
 
 const typeLabels: Record<string, { label: string; tone: "accent" | "violet" | "warning" | "neutral" }> = {
   TRANSFER: { label: "Transferencia", tone: "accent" },
+  QR_PAYMENT: { label: "Cobro por QR", tone: "violet" },
   ISSUANCE: { label: "Emisión", tone: "violet" },
   DEPOSIT: { label: "Carga", tone: "accent" },
   PAYMENT: { label: "Pago", tone: "warning" },

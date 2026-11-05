@@ -51,7 +51,14 @@ export function TransferForm({
   cards = [],
 }: {
   balance: number;
-  prefill?: { to?: string; amount?: string; desc?: string; req?: string };
+  prefill?: {
+    to?: string;
+    amount?: string;
+    desc?: string;
+    req?: string;
+    /** "1" cuando se llegó desde un QR de cobro. */
+    qr?: string;
+  };
   /** Tarjetas activas del alumno. Si no tiene, sólo se paga con saldo. */
   cards?: PayCard[];
 }) {
@@ -66,6 +73,11 @@ export function TransferForm({
   const [localError, setLocalError] = useState<string | null>(null);
   const [method, setMethod] = useState<"wallet" | "card">("wallet");
   const [cardId, setCardId] = useState(cards[0]?.id ?? "");
+
+  // Pago que viene de un QR de cobro (con o sin monto). Si el QR tiene pedido
+  // asociado, el monto es el del pedido y no se edita.
+  const viaQr = prefill?.qr === "1" || !!prefill?.req;
+  const amountLocked = !!prefill?.req && !!prefill?.amount;
 
   const card = cards.find((c) => c.id === cardId) ?? cards[0] ?? null;
   const payingWithCard = method === "card" && card !== null;
@@ -150,7 +162,11 @@ export function TransferForm({
         </div>
         <div>
           <p className="text-lg font-semibold">
-            {method === "card" ? "¡Compra aprobada!" : "¡Transferencia exitosa!"}
+            {method === "card"
+              ? "¡Compra aprobada!"
+              : viaQr
+                ? "¡Pago por QR exitoso!"
+                : "¡Transferencia exitosa!"}
           </p>
           <p className="mt-1 text-sm text-ink/50">{state.message}</p>
         </div>
@@ -183,6 +199,7 @@ export function TransferForm({
           {prefill?.req && (
             <input type="hidden" name="req" value={prefill.req} />
           )}
+          {viaQr && <input type="hidden" name="qr" value="1" />}
 
           {cards.length > 0 && (
             <div>
@@ -254,6 +271,7 @@ export function TransferForm({
                 placeholder="0,00"
                 className="pl-8 text-lg"
                 defaultValue={prefill?.amount ?? ""}
+                readOnly={amountLocked}
                 required
               />
             </div>

@@ -23,6 +23,11 @@ import {
   type CardBrandName,
 } from "@/lib/cards";
 import { formatMoney } from "@/lib/utils";
+import {
+  QR_LABEL,
+  requestErrorMessage,
+  settlePaymentRequest,
+} from "@/lib/payment-requests";
 import { isAdhered, notAdheredMessage } from "@/lib/memberships";
 import type { ActionResult } from "@/app/actions/student";
 
@@ -281,6 +286,7 @@ export async function payWithCard(
   const { destination, amount, description, category } = parsed.data;
   const cardId = String(formData.get("cardId") || "");
   const requestId = String(formData.get("req") || "");
+  const viaQr = formData.get("qr") === "1" || requestId !== "";
   const amountDec = D(amount);
 
   const destWallet = await prisma.wallet.findFirst({
@@ -333,7 +339,8 @@ export async function payWithCard(
         data: { balance: { increment: amountDec } },
       });
 
-      const label = description?.trim() || "Compra con tarjeta";
+      const label =
+        description?.trim() || (viaQr ? QR_LABEL : "Compra con tarjeta");
       const movement = await tx.transaction.create({
         data: {
           type: "CARD_PURCHASE",
@@ -361,22 +368,24 @@ export async function payWithCard(
         data: {
           userId: destWallet.userId,
           type: "MONEY_RECEIVED",
-          title: "¡Recibiste un pago con tarjeta!",
-          body: `${me.name} te pagó ${formatMoney(amount)} con tarjeta de ${card.bank.name}.`,
+          title: viaQr
+            ? "¡Te pagaron por QR con tarjeta!"
+            : "¡Recibiste un pago con tarjeta!",
+          body: viaQr
+            ? `${me.name} te pagó ${formatMoney(amount)} escaneando tu QR, con tarjeta de ${card.bank.name}.`
+            : `${me.name} te pagó ${formatMoney(amount)} con tarjeta de ${card.bank.name}.`,
           href: `/receipt/${movement.id}`,
         },
       });
 
       if (requestId) {
-        const req = await tx.paymentRequest.findUnique({
-          where: { id: requestId },
+        await settlePaymentRequest(tx, {
+          requestId,
+          requesterId: destWallet.userId,
+          payerId: me.id,
+          amount: amountDec,
+          transactionId: movement.id,
         });
-        if (req && req.status === "PENDING" && req.requesterId === destWallet.userId) {
-          await tx.paymentRequest.update({
-            where: { id: requestId },
-            data: { status: "PAID", paidAt: new Date(), payerId: me.id },
-          });
-        }
       }
 
       return {
@@ -389,6 +398,7 @@ export async function payWithCard(
     revalidatePath("/dashboard");
     revalidatePath("/activity");
     revalidatePath("/transfer");
+    revalidatePath("/request");
     return {
       ok: true,
       message: `Pagaste ${formatMoney(amount)} a ${destWallet.user.name} con la tarjeta. Te queda ${formatMoney(Number(result.available))} de límite disponible.`,
@@ -396,6 +406,8 @@ export async function payWithCard(
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
+    const reqError = requestErrorMessage(msg);
+    if (reqError) return { ok: false, error: reqError };
     if (msg === "NO_ENCONTRADA")
       return { ok: false, error: "No se encontró esa tarjeta." };
     if (msg === "INACTIVA")

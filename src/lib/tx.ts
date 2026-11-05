@@ -5,6 +5,7 @@ import { taxIdOf } from "@/lib/identity";
 /** Nombre legible de cada tipo de movimiento. */
 export const TX_TYPE_LABELS: Record<string, string> = {
   TRANSFER: "Transferencia",
+  QR_PAYMENT: "Cobro por QR",
   ISSUANCE: "Emisión",
   DEPOSIT: "Carga de saldo",
   PAYMENT: "Pago de cuenta",

@@ -221,7 +221,7 @@ export async function createPaymentRequest(
   if (!parsed.success)
     return { ok: false, error: parsed.error.issues[0].message };
 
-  await prisma.paymentRequest.create({
+  const created = await prisma.paymentRequest.create({
     data: {
       requesterId: me.id,
       amount: D(parsed.data.amount),
@@ -229,7 +229,11 @@ export async function createPaymentRequest(
     },
   });
   revalidatePath("/request");
-  return { ok: true, message: "Pedido de cobro creado. ¡Compartí el QR!" };
+  return {
+    ok: true,
+    message: "Pedido de cobro creado. ¡Compartí el QR!",
+    requestId: created.id,
+  };
 }
 
 export async function cancelPaymentRequest(
@@ -249,5 +253,6 @@ export async function cancelPaymentRequest(
     data: { status: "CANCELLED" },
   });
   revalidatePath("/request");
+  revalidatePath(`/request/${id}`);
   return { ok: true, message: "Pedido cancelado." };
 }

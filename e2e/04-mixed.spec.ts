@@ -111,7 +111,7 @@ test.describe("Flujos mixtos (alumno + admin)", () => {
     );
     await expect(page.getByLabel("Monto")).toHaveValue("800");
     await submitTransfer(page);
-    await expectMainContains(page, "¡Transferencia exitosa!");
+    await expectMainContains(page, "¡Pago por QR exitoso!");
 
     /* El pedido queda saldado y con el pagador correcto. */
     await expect
