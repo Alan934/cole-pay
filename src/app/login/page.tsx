@@ -2,11 +2,20 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { homeFor } from "@/lib/session";
+import { safeInternalPath } from "@/lib/redirect";
 import { LogoWordmark } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LoginForm } from "./LoginForm";
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ callbackUrl?: string }>;
+}) {
+  const { callbackUrl: rawCallback } = await searchParams;
+  // El middleware manda acá a quien abre un link privado sin sesión (típico de
+  // un QR de cobro escaneado con la cámara): después del login volvemos a él.
+  const callbackUrl = safeInternalPath(rawCallback) ?? undefined;
   const session = await auth();
   if (session?.user?.id) {
     // Verificamos que el usuario de la sesión aún exista (evita loops de
@@ -16,6 +25,9 @@ export default async function LoginPage() {
       select: { id: true },
     });
     if (exists) {
+      // Con sesión activa NO se honra el callbackUrl: si el middleware nos
+      // mandó acá es porque ese destino no le corresponde a su rol (un alumno
+      // abriendo /admin), y volver a él generaría un bucle de redirecciones.
       redirect(homeFor(session.user.role));
     }
   }
@@ -34,7 +46,7 @@ export default async function LoginPage() {
           </p>
         </div>
 
-        <LoginForm />
+        <LoginForm callbackUrl={callbackUrl} />
 
         <p className="mt-6 text-center text-xs text-ink/30">
           Dinero ficticio · Solo con fines educativos
