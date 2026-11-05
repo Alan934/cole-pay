@@ -33,6 +33,7 @@ type Party = {
 
 type TxWithUsers = {
   id: string;
+  receiptCode: string;
   type: string;
   amount: { toString(): string };
   description: string;
@@ -63,6 +64,7 @@ export function toTxView(tx: TxWithUsers, userId: string): TxView {
   const acc = tx.accrual;
   return {
     id: tx.id,
+    receiptCode: tx.receiptCode,
     type: tx.type,
     amount: Number(tx.amount.toString()),
     description: tx.description,
