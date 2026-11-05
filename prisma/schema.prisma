@@ -204,6 +204,11 @@ model Transaction {
   category    String? // categoría del gasto (ej: "Comida", "Servicios")
   timestamp   DateTime        @default(now())
 
+  // Número de comprobante: 4 caracteres para que se pueda anotar a mano. Lo
+  // genera la base al insertar (ver la migración `comprobante_codigo_corto`),
+  // así ningún alta de movimiento tiene que acordarse de pedirlo.
+  receiptCode String @unique @default(dbgenerated("gen_receipt_code()"))
+
   // senderId es null cuando el sistema/admin emite dinero.
   senderId String?
   sender   User?   @relation("SentTransactions", fields: [senderId], references: [id], onDelete: SetNull)

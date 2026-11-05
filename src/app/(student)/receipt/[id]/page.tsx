@@ -8,6 +8,7 @@ import { formatDateLong, formatMoney } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
 import { Logo } from "@/components/Logo";
 import { ReceiptActions } from "./ReceiptActions";
+import type { ReceiptImageData } from "./receipt-image";
 
 type Party = {
   name: string;
@@ -15,6 +16,15 @@ type Party = {
   alias: string | null;
   cvu: string | null;
 };
+
+/** Datos de una parte, tal como se listan en la imagen que se comparte. */
+function partyLines(p: Party): [string, string][] {
+  const lines: [string, string][] = [];
+  if (p.taxId) lines.push(["Documento", p.taxId]);
+  if (p.alias) lines.push(["Alias", p.alias]);
+  if (p.cvu) lines.push(["CVU", p.cvu]);
+  return lines;
+}
 
 type Person = {
   name: string;
@@ -126,24 +136,29 @@ export default async function ReceiptPage({
               : "1 pago · acreditado por el banco emisor",
           ],
           ["Estado", "Aprobada"],
-          ["Autorización", tx.id.slice(-6).toUpperCase()],
         ]
       : [];
 
-  // Lo que se manda por WhatsApp & co.: legible sin necesidad de abrir la app.
-  const shareText = [
-    `${title} · ColePay`,
-    `Monto: ${amount}`,
-    `${fromLabel}: ${from.name}${from.taxId ? ` (${from.taxId})` : ""}`,
-    `${toLabel}: ${to.name}${to.taxId ? ` (${to.taxId})` : ""}`,
-    !isCard && to.alias ? `Alias destino: ${to.alias}` : null,
-    ...cardRows.map(([k, v]) => `${k}: ${v}`),
-    `Fecha: ${date}`,
-    message ? `Mensaje: ${message}` : null,
-    `N° de comprobante: ${tx.id}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  // Resto de los datos del comprobante, en el mismo orden en pantalla y en la
+  // imagen que se comparte.
+  const extraRows: [string, string][] = [
+    ...cardRows,
+    ...(message ? ([["Mensaje", message]] as [string, string][]) : []),
+    ...(tx.category ? ([["Categoría", tx.category]] as [string, string][]) : []),
+  ];
+
+  const image: ReceiptImageData = {
+    title,
+    verb,
+    amount,
+    date,
+    parties: [
+      { label: fromLabel, name: from.name, you: iPaid, lines: partyLines(from) },
+      { label: toLabel, name: to.name, you: !iPaid, lines: partyLines(to) },
+    ],
+    rows: extraRows,
+    code: tx.receiptCode,
+  };
 
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
@@ -158,7 +173,7 @@ export default async function ReceiptPage({
         </p>
       </div>
 
-      <ReceiptActions shareText={shareText} fileName={`comprobante-${tx.id}`} />
+      <ReceiptActions image={image} fileName={`comprobante-${tx.receiptCode}`} />
 
       <Card className="overflow-hidden p-0 print:rounded-none print:border-0 print:shadow-none">
         <div className="flex items-center justify-between gap-3 border-b border-raised2/70 px-5 py-4">
@@ -186,13 +201,19 @@ export default async function ReceiptPage({
         </div>
 
         <dl className="flex flex-col gap-2 border-t border-raised2/70 px-5 py-5 text-sm">
-          {cardRows.map(([k, v]) => (
+          {extraRows.map(([k, v]) => (
             <Row key={k} label={k} value={v} />
           ))}
-          {message && <Row label="Mensaje" value={message} />}
-          {tx.category && <Row label="Categoría" value={tx.category} />}
-          <Row label="N° de comprobante" value={tx.id} mono />
         </dl>
+
+        <div className="border-t border-raised2/70 bg-accent/10 px-5 py-4 text-center">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-ink/50">
+            N° de comprobante
+          </p>
+          <p className="mt-1 font-mono text-4xl font-bold tracking-[0.25em]">
+            {tx.receiptCode}
+          </p>
+        </div>
 
         <p className="border-t border-raised2/70 bg-raised/40 px-5 py-3 text-center text-[11px] text-ink/40">
           ColePay · Moneda ficticia con fines educativos

@@ -53,6 +53,7 @@ export default async function TransactionsPage({
   const where: Prisma.TransactionWhereInput = q
     ? {
         OR: [
+          { receiptCode: { equals: q, mode: "insensitive" } },
           { description: { contains: q, mode: "insensitive" } },
           { category: { contains: q, mode: "insensitive" } },
           { sender: { name: { contains: q, mode: "insensitive" } } },
@@ -100,7 +101,7 @@ export default async function TransactionsPage({
             <Input
               name="q"
               defaultValue={q}
-              placeholder="Buscar por descripción o persona…"
+              placeholder="Buscar por n° de comprobante, descripción o persona…"
               className="h-10 pl-9 sm:w-72"
             />
           </form>

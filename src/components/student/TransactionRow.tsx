@@ -15,6 +15,8 @@ import type { TaxId } from "@/lib/identity";
 
 export type TxView = {
   id: string;
+  /** Número de comprobante, de 4 caracteres. */
+  receiptCode: string;
   type: string;
   amount: number;
   description: string;
@@ -96,8 +98,8 @@ export function TransactionRow({ tx }: { tx: TxView }) {
             {tx.incoming ? "+" : "−"}
             {formatMoney(tx.amount)}
           </Detail>
-          <Detail label="Comprobante" mono>
-            {tx.id}
+          <Detail label="N° de comprobante" mono>
+            {tx.receiptCode}
           </Detail>
         </dl>
 

@@ -32,11 +32,30 @@ test.describe("Comprobante de transferencia", () => {
     await expect(main).toContainText("mateo.test.dos");
     await expect(main).toContainText("El almuerzo");
     await expect(
-      page.getByRole("button", { name: /Compartir|Copiar datos/ }),
+      page.getByRole("button", { name: /Compartir|Descargar imagen/ }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Imprimir / PDF" }),
     ).toBeVisible();
+
+    // El número de comprobante es corto, para poder anotarlo: 4 caracteres.
+    const code = (
+      await page.getByText("N° de comprobante").locator("xpath=following-sibling::p").innerText()
+    ).trim();
+    expect(code).toMatch(/^[2-9A-HJ-NP-Z]{4}$/);
+    expect(await db.transaction.count({ where: { receiptCode: code } })).toBe(1);
+
+    // Compartir manda una imagen, no un texto. El navegador de los tests no
+    // puede compartir archivos, así que la descarga: debe ser un PNG de verdad.
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("button", { name: /Compartir|Descargar imagen/ }).click(),
+    ]);
+    expect(download.suggestedFilename()).toBe(`comprobante-${code}.png`);
+    const path = await download.path();
+    const png = (await import("node:fs")).readFileSync(path);
+    expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+    expect(png.length).toBeGreaterThan(10_000);
 
     // Quien recibió llega desde el detalle del movimiento.
     await logout(page);
@@ -145,7 +164,6 @@ test.describe("Comprobante de transferencia", () => {
     await expect(main).toContainText("Visa ••••6467");
     await expect(main).toContainText("Banco de Prueba");
     await expect(main).toContainText("Remera");
-    await expect(main).toContainText("Autorización");
     // Paga la titular, no el banco que adelanta la plata.
     await expect(main).toContainText("Sofia Test");
 
