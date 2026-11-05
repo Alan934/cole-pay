@@ -57,6 +57,7 @@ export const authConfig = {
         path.startsWith("/cheques") ||
         path.startsWith("/my-banks") ||
         path.startsWith("/request") ||
+        path.startsWith("/scan") ||
         path.startsWith("/rendimientos");
 
       if (isAdminArea) {

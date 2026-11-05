@@ -45,7 +45,9 @@ function payLink(
   desc?: string | null,
   reqId?: string,
 ) {
-  const params = new URLSearchParams({ to: alias, amount: String(amount) });
+  const params = new URLSearchParams({ to: alias });
+  // El QR "para recibir" no lleva monto: lo escribe quien paga.
+  if (amount > 0) params.set("amount", String(amount));
   if (desc) params.set("desc", desc);
   if (reqId) params.set("req", reqId);
   return `${origin}/transfer?${params.toString()}`;

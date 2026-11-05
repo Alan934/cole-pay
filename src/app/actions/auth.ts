@@ -4,6 +4,7 @@ import { AuthError } from "next-auth";
 import { signIn, signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { homeFor } from "@/lib/session";
+import { safeInternalPath } from "@/lib/redirect";
 
 export type LoginState = { error: string } | null;
 
@@ -20,7 +21,10 @@ export async function login(
     where: { email },
     select: { role: true },
   });
-  const redirectTo = homeFor(user?.role);
+  // Si venía de un link privado (por ejemplo un QR de cobro escaneado con la
+  // cámara), después de entrar lo llevamos ahí y no al inicio.
+  const redirectTo =
+    safeInternalPath(formData.get("callbackUrl")) ?? homeFor(user?.role);
 
   try {
     await signIn("credentials", { email, password, redirectTo });

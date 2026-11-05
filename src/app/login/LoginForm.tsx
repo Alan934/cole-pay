@@ -19,12 +19,15 @@ function SubmitButton() {
   );
 }
 
-export function LoginForm() {
+export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
   const [state, formAction] = useActionState<LoginState, FormData>(login, null);
 
   return (
     <Card className="p-6">
       <form action={formAction} className="flex flex-col gap-4">
+        {callbackUrl && (
+          <input type="hidden" name="callbackUrl" value={callbackUrl} />
+        )}
         <div>
           <Label htmlFor="email">Email</Label>
           <Input
